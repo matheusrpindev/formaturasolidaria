@@ -31,67 +31,71 @@ publicRoutes.get('/', async (c) => {
   const edicao = escolas.results[0]?.edicao;
 
   return c.html(
-    <Layout titulo="Início" usuario={c.get('usuario')}>
-      <section class="hero">
-        <div class="hero-inner">
-          <span class="selo-topo">
-            Projeto social {edicao ? `· Edição ${edicao}` : ''}
-          </span>
-          <h1>
-            A sua formatura é <em>gratuita</em>. O ingresso é 1 kg de alimento.
-          </h1>
-          <p class="lead">
-            O Formaturas Solidárias realiza a cerimônia de formatura completa para escolas públicas
-            de Itaquaquecetuba — sem custo para o aluno e sem custo para a escola. Cada pessoa leva
-            1 kg de alimento não perecível no dia, e tudo vira cesta básica para a comunidade.
+    <Layout titulo="Início" usuario={c.get('usuario')} topoSobre>
+      <section class="hero-video">
+        {/* Vídeo em loop, sem som. Para trocar, substitua public/video/hero.mp4 e hero.jpg. */}
+        <video
+          class="hero-bg"
+          autoplay
+          muted
+          loop
+          playsinline
+          preload="auto"
+          poster="/video/hero.jpg"
+          aria-hidden="true"
+        >
+          <source src="/video/hero.mp4" type="video/mp4" />
+        </video>
+        <div class="hero-veu" />
+        <div class="hero-conteudo">
+          <p class="hero-sobre">
+            Projeto social · Itaquaquecetuba
+            <br />
+            {edicao ? `Edição ${edicao}` : 'Próxima edição'}
+            {total > 0 ? ` · ${total} escola${total === 1 ? '' : 's'}` : ''}
           </p>
+          <h1 class="hero-titulo">
+            Formaturas
+            <br />
+            Solidárias
+          </h1>
+          <div class="hero-linhas">
+            <p>A formatura é gratuita.</p>
+            <p>O ingresso é 1 kg de alimento.</p>
+            <p>Tudo vira cesta básica para a comunidade.</p>
+          </div>
           <div class="hero-acoes">
-            <a class="botao botao-verde" href="#escolas">
+            <a class="botao botao-branco" href="#escolas">
               Encontrar minha escola
             </a>
-            <a class="botao botao-claro" href="#como">
-              Como funciona
-            </a>
-          </div>
-          <div class="hero-selos">
-            {total > 0 && (
-              <div>
-                <b>
-                  {total} escola{total === 1 ? '' : 's'}
-                </b>
-                <span>nesta edição</span>
-              </div>
-            )}
-            <div>
-              <b>Custo zero</b>
-              <span>para o aluno e para a escola</span>
-            </div>
-            <div>
-              <b>1 kg por pessoa</b>
-              <span>entregue no dia da cerimônia</span>
-            </div>
-            <div>
-              <b>Até 3 convidados</b>
-              <span>de direito para cada formando</span>
-            </div>
           </div>
         </div>
       </section>
+      <script
+        dangerouslySetInnerHTML={{
+          __html:
+            "if(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches){var v=document.querySelector('.hero-bg');if(v){v.removeAttribute('autoplay');v.pause();}}",
+        }}
+      />
 
-      <section class="secao sobreposto" id="como">
+      <section class="secao" id="como">
+        <div class="secao-cabeca">
+          <p class="kicker">Como funciona</p>
+          <h2>Três passos até a cerimônia</h2>
+        </div>
         <div class="grade grade-3">
           <div class="passo">
-            <span class="n">1</span>
+            <span class="n">01</span>
             <h3>Ache a sua escola</h3>
             <p>Escolha a escola na lista abaixo e busque o seu nome entre os formandos.</p>
           </div>
           <div class="passo">
-            <span class="n">2</span>
+            <span class="n">02</span>
             <h3>Diga quem vai com você</h3>
             <p>Confirme a inscrição e informe quantos acompanhantes vai levar — até 3.</p>
           </div>
-          <div class="passo passo-verde">
-            <span class="n">3</span>
+          <div class="passo">
+            <span class="n">03</span>
             <h3>Leve 1 kg por pessoa</h3>
             <p>No dia da formatura, cada pessoa entrega 1 kg de alimento. Esse é o ingresso.</p>
           </div>
@@ -105,27 +109,24 @@ publicRoutes.get('/', async (c) => {
           {total > 0 && <p>Clique na sua escola para buscar o seu nome na lista de formandos.</p>}
         </div>
         {total === 0 ? (
-          <div class="cartao">
-            <p class="ajuda">
-              As escolas desta edição serão publicadas aqui em breve. Acompanhe pela direção da sua
-              escola.
-            </p>
-          </div>
+          <p class="ajuda">
+            As escolas desta edição serão publicadas aqui em breve. Acompanhe pela direção da sua
+            escola.
+          </p>
         ) : (
-          <div class="grade grade-2">
+          <div class="escolas-lista">
             {escolas.results.map((e) => (
               <a class="escola-card" href={`/e/${e.slug}`}>
-                <p class="kicker" style="margin:0">
-                  Edição {e.edicao}
-                </p>
-                <h3>{e.nome}</h3>
-                <div class="meta">
-                  {e.prazo_inscricao
-                    ? `Inscrições até ${formatarData(e.prazo_inscricao)}`
-                    : 'Inscrições abertas'}
+                <div>
+                  <h3>{e.nome}</h3>
+                  <div class="meta">
+                    {e.prazo_inscricao
+                      ? `Inscrições até ${formatarData(e.prazo_inscricao)}`
+                      : 'Inscrições abertas'}
+                  </div>
                 </div>
                 <div class="seta">
-                  Buscar meu nome <span>→</span>
+                  <b>Buscar meu nome</b> <span>→</span>
                 </div>
               </a>
             ))}
@@ -134,16 +135,13 @@ publicRoutes.get('/', async (c) => {
       </section>
 
       <section class="secao secao-final">
-        <div class="secao-cabeca">
-          <p class="kicker">O lado solidário</p>
-          <h2>Para onde vai o alimento</h2>
-        </div>
         <div class="faixa-verde">
           <div class="num">
             1 kg
             <small>por pessoa</small>
           </div>
           <div>
+            <p class="kicker">Para onde vai o alimento</p>
             <h2>O ingresso vira cesta básica</h2>
             <p>
               Todo o alimento recolhido na entrada da cerimônia é transformado em mini cestas
