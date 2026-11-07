@@ -37,7 +37,6 @@ publicRoutes.get('/', async (c) => {
     "SELECT * FROM escolas WHERE status = 'ativa' ORDER BY data_cerimonia IS NULL, data_cerimonia, nome"
   ).all<Escola>();
   const total = escolas.results.length;
-  const edicao = escolas.results[0]?.edicao;
 
   return c.html(
     <Layout titulo="Início" usuario={c.get('usuario')} topoSobre>
@@ -60,8 +59,7 @@ publicRoutes.get('/', async (c) => {
           <p class="hero-sobre">
             Projeto social · Itaquaquecetuba
             <br />
-            {edicao ? `Edição ${edicao}` : 'Próxima edição'}
-            {total > 0 ? ` · ${total} escola${total === 1 ? '' : 's'}` : ''}
+            {total > 0 ? `${total} escola${total === 1 ? '' : 's'}` : 'Próxima edição em breve'}
           </p>
           <h1 class="hero-titulo">
             Formaturas
@@ -71,7 +69,7 @@ publicRoutes.get('/', async (c) => {
           <div class="hero-linhas">
             <p>A formatura é gratuita.</p>
             <p>O ingresso é 1 litro de leite.</p>
-            <p>Todo o leite é doado para a comunidade.</p>
+            <p>Todo o leite arrecadado vira doação.</p>
           </div>
           <div class="hero-acoes">
             <a class="botao botao-branco" href="#escolas">
@@ -106,7 +104,7 @@ publicRoutes.get('/', async (c) => {
           <div class="passo">
             <span class="n">03</span>
             <h3>Leve 1 litro de leite por pessoa</h3>
-            <p>No dia da formatura, cada pessoa entrega 1 litro de leite. Esse é o ingresso.</p>
+            <p>No dia da formatura, cada pessoa leva 1 litro de leite e deposita na caixa da escola. Esse é o ingresso.</p>
           </div>
         </div>
       </section>
@@ -166,8 +164,9 @@ publicRoutes.get('/', async (c) => {
             <p class="kicker">Para onde vai o leite</p>
             <h2>O ingresso vira doação</h2>
             <p>
-              Todo o leite recolhido na entrada da cerimônia é doado para famílias da comunidade
-              da própria escola. Formando, família e bairro saem ganhando no mesmo dia.
+              Todo o leite recolhido na entrada da cerimônia vira doação: uma parte fica com a
+              comunidade escolar da própria escola, e o restante vai para famílias em situação de
+              vulnerabilidade social.
             </p>
           </div>
         </div>
@@ -662,7 +661,7 @@ publicRoutes.get('/c/:codigo', async (c) => {
               <b>
                 {pessoas} {pessoas === 1 ? 'litro' : 'litros'}
               </b>
-              <span>de leite — 1 litro por pessoa, entregue na entrada da cerimônia</span>
+              <span>de leite — 1 litro por pessoa, depositado na caixa da escola na entrada da cerimônia</span>
             </div>
 
             {aluno.qtd_espera > 0 && (

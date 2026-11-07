@@ -5,6 +5,7 @@ import { FaixaPagina, Layout, Kpi, Msg } from '../ui';
 import {
   type Escola,
   dataHoraBrasilia,
+  formatarData,
   gravarConfig,
   kpisEscola,
   lerConfig,
@@ -33,7 +34,13 @@ adminRoutes.use('/admin', async (c, next) => {
 // ---------- Consolidado ----------
 adminRoutes.get('/admin', async (c) => {
   const u = c.get('usuario')!;
-  const escolas = (await c.env.DB.prepare('SELECT * FROM escolas ORDER BY nome').all<Escola>()).results;
+  // Escolas encerradas (fora da edição) ficam fora da visão geral, a não ser que se peça para vê-las.
+  const verEncerradas = c.req.query('encerradas') === '1';
+  const todas = (
+    await c.env.DB.prepare('SELECT * FROM escolas ORDER BY data_cerimonia IS NULL, data_cerimonia, nome').all<Escola>()
+  ).results;
+  const escolas = verEncerradas ? todas : todas.filter((e) => e.status !== 'encerrada');
+  const qtdEncerradas = todas.length - todas.filter((e) => e.status !== 'encerrada').length;
   const linhas: { e: Escola; k: Awaited<ReturnType<typeof kpisEscola>> }[] = [];
   for (const e of escolas) linhas.push({ e, k: await kpisEscola(c.env.DB, e.id) });
   const tot = linhas.reduce(
@@ -54,7 +61,7 @@ adminRoutes.get('/admin', async (c) => {
       <FaixaPagina
         kicker="Administração do projeto"
         titulo="Visão geral"
-        lead={`${escolas.length} escola${escolas.length === 1 ? '' : 's'} cadastrada${escolas.length === 1 ? '' : 's'} · números somados de todas as escolas`}
+        lead={`${escolas.length} escola${escolas.length === 1 ? '' : 's'} ${verEncerradas ? 'cadastrada' + (escolas.length === 1 ? '' : 's') : 'nesta edição'} · números somados${verEncerradas ? ', incluindo encerradas' : ''}`}
       />
       <main class="wrap">
         <div class="kpis">
@@ -68,6 +75,11 @@ adminRoutes.get('/admin', async (c) => {
         <div class="linha-acoes">
           <a class="botao" href="/admin/escolas/nova">+ Nova escola</a>
           <a class="botao botao-borda" href="/admin/auditoria">Auditoria</a>
+          {qtdEncerradas > 0 && (
+            <a class="botao botao-borda" href={verEncerradas ? '/admin' : '/admin?encerradas=1'}>
+              {verEncerradas ? 'Esconder encerradas' : `Ver encerradas (${qtdEncerradas})`}
+            </a>
+          )}
         </div>
 
         <div class="tabela-scroll">
@@ -85,7 +97,10 @@ adminRoutes.get('/admin', async (c) => {
             </tr>
             {linhas.map(({ e, k }) => (
               <tr>
-                <td class="quebra">{e.nome}</td>
+                <td class="quebra">
+                  {e.nome}
+                  {e.data_cerimonia && <span class="ajuda"> · {formatarData(e.data_cerimonia).slice(0, 5)}</span>}
+                </td>
                 <td class="num">
                   {k.inscritos} / {k.total_lista}
                 </td>

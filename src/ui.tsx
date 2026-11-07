@@ -84,6 +84,7 @@ a { color: var(--azul); text-underline-offset: 3px; }
 }
 .topo-nav a:hover, .topo-nav button:hover { opacity: 1; border-bottom-color: currentColor; }
 .topo-nav form { margin: 0; display: inline; }
+.so-curto { display: none; }
 
 /* Topo transparente sobre o vídeo (só na home) */
 .topo-sobre { position: absolute; top: 0; left: 0; right: 0; z-index: 5; background: transparent; color: #fff; border-bottom: 1px solid rgba(255,255,255,.18); }
@@ -283,6 +284,8 @@ input[type=date] { color-scheme: dark; min-height: 48px; }
 .fila-item .nome { font-weight: 700; }
 .fila-item .meta { color: var(--muted); font-size: 14px; }
 .ficha-item.em-espera { border-style: dashed; }
+.ao-vivo { display: flex; align-items: center; gap: 8px; margin: 0 0 14px; font-size: 13px; color: var(--muted); }
+.ao-vivo i { width: 8px; height: 8px; border-radius: 50%; background: var(--verde); box-shadow: 0 0 0 3px var(--verde-suave); flex: 0 0 auto; }
 .lista-erros { margin: 8px 0 0; padding-left: 18px; font-weight: 500; }
 .lista-erros li + li { margin-top: 4px; }
 .dados dd .nomes { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; color: var(--fg-2); font-weight: 500; }
@@ -394,6 +397,8 @@ td a:hover { text-decoration: underline; }
 @media (max-width: 620px) {
   .topo-inner { padding: 16px; }
   .topo-nav { gap: 16px; }
+  .so-largo { display: none; }
+  .so-curto { display: inline; }
   .hero-conteudo { padding: 120px 16px 56px; }
   .hero-acoes .botao { width: 100%; }
   .cartao { padding: 20px; }
@@ -505,7 +510,10 @@ export const Layout: FC<{
                   </form>
                 </>
               ) : (
-                <a href="/entrar">Entrar</a>
+                <a href="/entrar">
+                  <span class="so-largo">Acesso da comissão e da direção</span>
+                  <span class="so-curto">Comissão e direção</span>
+                </a>
               )}
             </nav>
           </div>

@@ -9,6 +9,7 @@ import {
   SQL_SALDO,
   acompanhantesDoAluno,
   dataHoraBrasilia,
+  formatarCerimonia,
   formatarData,
   formatarTelefone,
   gerarCodigo,
@@ -25,6 +26,37 @@ function exigirLogin(c: any): SessUser | Response {
   const u = c.get('usuario') as SessUser | null;
   if (!u) return c.redirect('/entrar');
   return u;
+}
+
+// Atualiza o painel sozinho a cada 30 s (acompanhamento em tempo real dos ingressos).
+// Troca só o conteúdo da página e pula a vez se a pessoa estiver digitando ou com a aba escondida.
+const JS_AO_VIVO = `
+(function () {
+  var INTERVALO = 30000;
+  function ocupado() {
+    var a = document.activeElement;
+    return a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) || document.visibilityState !== 'visible';
+  }
+  function atualizar() {
+    if (ocupado()) return;
+    fetch(location.href, { credentials: 'same-origin', headers: { 'X-Ao-Vivo': '1' } })
+      .then(function (r) { return r.ok && !r.redirected ? r.text() : null; })
+      .then(function (html) {
+        if (!html || ocupado()) return;
+        var novo = new DOMParser().parseFromString(html, 'text/html').querySelector('main');
+        var atual = document.querySelector('main');
+        if (novo && atual) atual.innerHTML = novo.innerHTML;
+      })
+      .catch(function () {});
+  }
+  setInterval(atualizar, INTERVALO);
+})();
+`;
+
+function horaBrasilia(): string {
+  const b = new Date(Date.now() - 3 * 60 * 60 * 1000);
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${p(b.getUTCHours())}:${p(b.getUTCMinutes())}:${p(b.getUTCSeconds())}`;
 }
 
 // ---------- Dashboard da escola (comissão edita, direção só lê) ----------
@@ -67,7 +99,7 @@ async function renderDashboard(c: any, escolaId: number, somenteLeitura: boolean
       <FaixaPagina
         kicker={somenteLeitura ? 'Painel da direção · somente leitura' : 'Painel da comissão de formatura'}
         titulo={escola.nome}
-        lead={`Edição ${escola.edicao}`}
+        lead={escola.data_cerimonia ? `Formatura ${formatarCerimonia(escola, true)}` : `Edição ${escola.edicao}`}
         voltar={u.papel === 'admin' ? { href: '/admin', texto: 'Todas as escolas' } : undefined}
       >
         <p class="lead">
@@ -78,6 +110,9 @@ async function renderDashboard(c: any, escolaId: number, somenteLeitura: boolean
         {avisos?.ok && <Msg tipo="ok">{avisos.ok}</Msg>}
         {avisos?.erro && <Msg tipo="erro">{avisos.erro}</Msg>}
 
+        <p class="ao-vivo">
+          <i aria-hidden="true"></i> Ao vivo · atualiza sozinho a cada 30 segundos · última atualização às {horaBrasilia()}
+        </p>
         <div class="kpis">
           <Kpi valor={`${kpis.inscritos} / ${kpis.total_lista}`} rotulo="inscritos sobre a lista de formandos" />
           <Kpi valor={kpis.ingressos} rotulo="ingressos usados (formandos + acompanhantes)" />
@@ -240,6 +275,7 @@ async function renderDashboard(c: any, escolaId: number, somenteLeitura: boolean
           </>
         )}
       </main>
+      <script dangerouslySetInnerHTML={{ __html: JS_AO_VIVO }} />
     </Layout>
   );
 }
