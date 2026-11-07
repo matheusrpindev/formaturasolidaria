@@ -21,6 +21,16 @@ export function formatarHora(h: string | null | undefined): string {
   return `${parseInt(m[1], 10)}h${m[2] === '00' ? '' : m[2]}`;
 }
 
+const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+
+/** Partes da data da cerimônia para a folhinha do calendário: { dia: '16', mes: 'dez', semana: 'qua' }. */
+export function partesCerimonia(e: Pick<Escola, 'data_cerimonia'>): { dia: string; mes: string; semana: string } | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(e.data_cerimonia ?? '');
+  if (!m) return null;
+  const d = new Date(`${e.data_cerimonia}T12:00:00Z`).getUTCDay();
+  return { dia: m[3], mes: MESES[parseInt(m[2], 10) - 1], semana: DIAS[d].slice(0, 3) };
+}
+
 /** Data da cerimônia por extenso curto: 'terça, 08/12 às 18h'. Vazio se não houver data. */
 export function formatarCerimonia(e: Pick<Escola, 'data_cerimonia' | 'hora_cerimonia'>, comAno = false): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(e.data_cerimonia ?? '');

@@ -11,6 +11,7 @@ import {
   formatarCerimonia,
   formatarData,
   formatarTelefone,
+  partesCerimonia,
   limparTelefone,
   nascimentoValido,
   gerarCodigo,
@@ -125,10 +126,24 @@ publicRoutes.get('/', async (c) => {
           <div class="escolas-lista">
             {escolas.results.map((e) => (
               <a class="escola-card" href={`/e/${e.slug}`}>
-                <div>
+                {(() => {
+                  const d = partesCerimonia(e);
+                  return d ? (
+                    <div class="folhinha" aria-label={`Formatura ${formatarCerimonia(e)}`}>
+                      <b>{d.dia}</b>
+                      <span>{d.mes}</span>
+                      <small>{d.semana}</small>
+                    </div>
+                  ) : null;
+                })()}
+                <div class="escola-info">
                   <h3>{e.nome}</h3>
                   <div class="meta">
-                    {e.data_cerimonia && <span class="data-cerimonia">Formatura {formatarCerimonia(e)}</span>}
+                    {e.data_cerimonia && (
+                      <span class="data-cerimonia">
+                        Formatura {formatarCerimonia(e)}
+                      </span>
+                    )}
                     {e.prazo_inscricao ? ` · inscrições até ${formatarData(e.prazo_inscricao)}` : ''}
                   </div>
                 </div>
@@ -190,7 +205,11 @@ publicRoutes.get('/e/:slug', async (c) => {
       <FaixaPagina
         estreito
         voltar={{ href: '/', texto: 'Todas as escolas' }}
-        kicker={`Formatura Solidária · Edição ${escola.edicao}`}
+        kicker={
+          escola.data_cerimonia
+            ? `Formatura de ${formatarData(escola.data_cerimonia).slice(0, 5)} · Edição ${escola.edicao}`
+            : `Formatura Solidária · Edição ${escola.edicao}`
+        }
         titulo={escola.nome}
         lead={[
           escola.data_cerimonia ? `Formatura ${formatarCerimonia(escola, true)}.` : '',
@@ -381,7 +400,7 @@ const FormInscricao = (p: { escola: Escola; aluno: Aluno; erros?: string[]; valo
       <FaixaPagina
         estreito
         voltar={{ href: `/e/${p.escola.slug}`, texto: 'Não sou eu, voltar' }}
-        kicker={p.escola.nome}
+        kicker={p.escola.data_cerimonia ? `${p.escola.nome} · ${formatarData(p.escola.data_cerimonia).slice(0, 5)}` : p.escola.nome}
         titulo={p.aluno.nome}
         lead={`${p.aluno.turma ?? 'Turma não informada'} · falta pouco para confirmar a sua vaga.`}
       />

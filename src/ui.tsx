@@ -163,6 +163,16 @@ a { color: var(--azul); text-underline-offset: 3px; }
   display: flex; align-items: center; justify-content: space-between; gap: 20px;
   padding: 26px 0; border-bottom: 1px solid var(--line); text-decoration: none; color: inherit;
 }
+.escola-card .escola-info { flex: 1; min-width: 0; }
+.folhinha {
+  flex: 0 0 auto; width: 64px; text-align: center; line-height: 1;
+  border: 1px solid var(--line-2); border-radius: var(--r); padding: 9px 0 8px;
+  transition: border-color .15s ease;
+}
+.folhinha b { display: block; font-size: 26px; font-weight: 800; letter-spacing: -0.03em; color: var(--fg); font-variant-numeric: tabular-nums; }
+.folhinha span { display: block; margin-top: 4px; font-size: 11px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--verde); }
+.folhinha small { display: block; margin-top: 3px; font-size: 11px; color: var(--muted); }
+.escola-card:hover .folhinha { border-color: var(--verde); }
 .escola-card h3 { margin: 0; font-size: clamp(20px, 2.4vw, 26px); font-weight: 700; transition: color .15s ease; }
 .escola-card .meta { color: var(--muted); font-size: 14.5px; margin-top: 4px; }
 .escola-card .data-cerimonia { color: var(--fg-2); font-weight: 600; }
