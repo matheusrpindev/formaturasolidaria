@@ -11,6 +11,49 @@ type Ctx = { Bindings: Env; Variables: { usuario: SessUser | null } };
 
 const app = new Hono<Ctx>();
 
+// ---------- Vídeos com suporte a Range ----------
+// O Safari do iPhone só toca <video> se o servidor responder pedidos de pedaços
+// do arquivo (206 Partial Content). Os arquivos são pequenos (~2 MB), então dá
+// para ler inteiro e devolver só o trecho pedido.
+app.get('/video/*', async (c) => {
+  const res = await c.env.ASSETS.fetch(new Request(new URL(c.req.path, c.req.url)));
+  if (!res.ok) return res;
+  const corpo = new Uint8Array(await res.arrayBuffer());
+  const total = corpo.length;
+  const cabecalhos: Record<string, string> = {
+    'Accept-Ranges': 'bytes',
+    'Content-Type': res.headers.get('content-type') ?? 'application/octet-stream',
+    'Cache-Control': 'public, max-age=86400',
+  };
+  const etag = res.headers.get('etag');
+  if (etag) cabecalhos['ETag'] = etag;
+
+  const m = /^bytes=(\d*)-(\d*)$/.exec((c.req.header('range') ?? '').trim());
+  if (!m || (m[1] === '' && m[2] === '')) {
+    return new Response(corpo, { headers: { ...cabecalhos, 'Content-Length': String(total) } });
+  }
+  let inicio: number;
+  let fim: number;
+  if (m[1] === '') {
+    inicio = Math.max(0, total - parseInt(m[2], 10)); // "bytes=-500": os últimos 500
+    fim = total - 1;
+  } else {
+    inicio = parseInt(m[1], 10);
+    fim = m[2] === '' ? total - 1 : Math.min(parseInt(m[2], 10), total - 1);
+  }
+  if (inicio > fim || inicio >= total) {
+    return new Response(null, { status: 416, headers: { 'Content-Range': `bytes */${total}` } });
+  }
+  return new Response(corpo.slice(inicio, fim + 1), {
+    status: 206,
+    headers: {
+      ...cabecalhos,
+      'Content-Range': `bytes ${inicio}-${fim}/${total}`,
+      'Content-Length': String(fim - inicio + 1),
+    },
+  });
+});
+
 app.use('*', async (c, next) => {
   c.set('usuario', await usuarioDaSessao(c));
   await next();

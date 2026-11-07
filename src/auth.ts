@@ -1,7 +1,7 @@
 import type { Context } from 'hono';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 
-export type Env = { DB: D1Database; SESSION_SECRET: string };
+export type Env = { DB: D1Database; SESSION_SECRET: string; ASSETS: Fetcher };
 export type SessUser = {
   id: number;
   nome: string;
