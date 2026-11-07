@@ -1,7 +1,7 @@
 # Formaturas Solidárias — sistema de inscrições
 
 Sistema web do projeto Formaturas Solidárias (Itaquaquecetuba): inscrição de formandos e
-acompanhantes, ingresso solidário (1 kg de alimento por pessoa, entregue no dia) e painéis para
+acompanhantes, ingresso solidário (1 litro de leite por pessoa, entregue no dia) e painéis para
 comissão, direção e administração.
 
 **Stack:** Cloudflare Workers + D1 (SQLite) + Hono (JSX server-side). Custo zero no plano free.
@@ -9,9 +9,9 @@ comissão, direção e administração.
 ## Perfis
 
 - **Aluno (público, sem senha):** entra pelo link da escola (`/e/<slug>`), busca o nome na lista,
-  informa acompanhantes (até 3) e recebe a confirmação com os kg da família.
+  preenche nascimento, telefone e endereço, informa os acompanhantes (até 3, com os mesmos dados) e recebe a confirmação com os litros de leite da família.
 - **Comissão (`/painel`):** gerencia inscrições da própria escola, registra convidados extras
-  (aprovados verbalmente pela direção), inclui aluno fora da lista, lança o total de kg após o evento.
+  (aprovados verbalmente pela direção), inclui aluno fora da lista, lança o total de litros após o evento.
 - **Direção (`/painel`):** mesmos números, somente leitura.
 - **Admin (`/admin`):** escolas, importação de listas, acessos, configurações e auditoria.
 

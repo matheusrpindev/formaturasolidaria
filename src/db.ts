@@ -21,9 +21,55 @@ export type Aluno = {
   qtd_extras: number;
   extra_autorizado_por: string | null;
   telefone: string | null;
+  endereco: string | null;
+  data_nascimento: string | null;
   observacoes: string | null;
   incluido_manualmente: number;
 };
+
+export type Acompanhante = {
+  id: number;
+  aluno_id: number;
+  ordem: number;
+  nome: string;
+  endereco: string;
+  data_nascimento: string;
+  telefone: string;
+};
+
+export async function acompanhantesDoAluno(db: D1Database, alunoId: number): Promise<Acompanhante[]> {
+  const r = await db
+    .prepare('SELECT * FROM acompanhantes WHERE aluno_id = ? ORDER BY ordem')
+    .bind(alunoId)
+    .all<Acompanhante>();
+  return r.results;
+}
+
+/** Valida uma data de nascimento no formato do <input type=date> (AAAA-MM-DD). */
+export function nascimentoValido(iso: string): boolean {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (!m) return false;
+  const d = new Date(`${iso}T12:00:00Z`);
+  if (isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== iso) return false;
+  const ano = parseInt(m[1], 10);
+  return ano >= 1900 && iso <= new Date().toISOString().slice(0, 10);
+}
+
+/** Aceita telefone brasileiro com DDD (10 ou 11 dígitos); devolve só os dígitos. */
+export function limparTelefone(t: string): string | null {
+  let d = t.replace(/\D/g, '');
+  if (d.length > 11 && d.startsWith('55')) d = d.slice(2);
+  return d.length === 10 || d.length === 11 ? d : null;
+}
+
+/** 11987654321 -> (11) 98765-4321 */
+export function formatarTelefone(t: string | null | undefined): string {
+  if (!t) return '';
+  const d = t.replace(/\D/g, '');
+  if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+  if (d.length === 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+  return t;
+}
 
 export type Kpis = {
   total_lista: number;

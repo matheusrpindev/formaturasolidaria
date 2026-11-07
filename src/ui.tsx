@@ -172,7 +172,7 @@ a { color: var(--azul); text-underline-offset: 3px; }
 .escola-card:hover h3 { color: var(--verde); }
 .escola-card:hover .seta { gap: 16px; }
 
-/* Bloco do alimento */
+/* Bloco do leite */
 .faixa-verde { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 48px; align-items: end; border-top: 1px solid var(--line-2); padding-top: 32px; }
 .faixa-verde .num { font-size: clamp(64px, 10vw, 128px); font-weight: 800; line-height: .9; letter-spacing: -0.05em; color: var(--verde); }
 .faixa-verde .num small { display: block; font-size: 13px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); margin-top: 14px; }
@@ -249,6 +249,27 @@ select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmln
 .opcao:has(input:checked) b { color: var(--verde); }
 .opcao:has(input:focus-visible) { outline: 2px solid var(--anel); outline-offset: 3px; }
 .opcao:focus-within { outline: 2px solid var(--anel); outline-offset: 3px; }
+
+/* Fichas da inscrição (formando e acompanhantes) */
+.ficha { border: 1px solid var(--line-2); border-radius: var(--r); padding: 4px 20px 22px; margin: 24px 0 0; min-width: 0; }
+.ficha:first-child { margin-top: 0; }
+.ficha legend { padding: 0 8px; margin-left: -8px; font-size: 12px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--verde); }
+.ficha-nome { margin: 10px 0 0; color: var(--fg-2); }
+.ficha-nome b { color: var(--fg); }
+.ficha-nome span { color: var(--muted); }
+.duas-col { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
+.duas-col > div { min-width: 0; }
+.check-linha { display: flex; gap: 10px; align-items: center; font-weight: 500; color: var(--fg-2); margin: 18px 0 0; cursor: pointer; }
+.check-linha input { width: 18px; height: 18px; margin: 0; accent-color: var(--verde); flex: 0 0 auto; }
+input[type=date] { color-scheme: dark; min-height: 48px; }
+.lista-erros { margin: 8px 0 0; padding-left: 18px; font-weight: 500; }
+.lista-erros li + li { margin-top: 4px; }
+.dados dd .nomes { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; color: var(--fg-2); font-weight: 500; }
+.dados dd .nomes span::before { content: '· '; color: var(--muted); }
+.ficha-lista { display: grid; gap: 12px; margin: 10px 0 0; }
+.ficha-item { border: 1px solid var(--line); border-radius: var(--r); padding: 14px 16px; }
+.ficha-item b { display: block; }
+.ficha-item .dados { margin-top: 8px; font-size: 14px; }
 
 .concordo {
   display: flex; gap: 12px; align-items: flex-start; margin: 24px 0 0;
@@ -364,6 +385,8 @@ td a:hover { text-decoration: underline; }
   .botao-largo-mobile { display: flex; width: 100%; }
   .so-mobile { display: block; }
   .barra-filtro .busca-form { max-width: none; }
+  .duas-col { grid-template-columns: 1fr; }
+  .ficha { padding: 2px 14px 18px; }
 }
 
 @media print {
@@ -411,7 +434,7 @@ export const Layout: FC<{
 }> = (props) => {
   const descricao =
     props.descricao ??
-    'Formatura gratuita para escolas públicas de Itaquaquecetuba. O ingresso é 1 kg de alimento não perecível por pessoa, entregue no dia da cerimônia.';
+    'Formatura gratuita para escolas públicas de Itaquaquecetuba. O ingresso é 1 litro de leite por pessoa, entregue no dia da cerimônia.';
   const titulo = `${props.titulo} · Formaturas Solidárias`;
   // Título que aparece na prévia do link no WhatsApp.
   const tituloCompartilhado =
@@ -471,7 +494,7 @@ export const Layout: FC<{
           <div class="rodape-inner">
             <div>
               <b>Formaturas Solidárias</b> · Itaquaquecetuba
-              <br />O ingresso é 1 kg de alimento não perecível por pessoa, entregue no dia.
+              <br />O ingresso é 1 litro de leite por pessoa, entregue no dia.
             </div>
             <div>
               Parceria Universidade Guarulhos e Inova Formaturas

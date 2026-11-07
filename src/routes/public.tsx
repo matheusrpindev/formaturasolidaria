@@ -4,7 +4,10 @@ import { FaixaPagina, IconeBusca, JS_OPCOES, Layout, Msg } from '../ui';
 import {
   type Aluno,
   type Escola,
+  acompanhantesDoAluno,
   formatarData,
+  limparTelefone,
+  nascimentoValido,
   gerarCodigo,
   lerConfig,
   normalizar,
@@ -61,8 +64,8 @@ publicRoutes.get('/', async (c) => {
           </h1>
           <div class="hero-linhas">
             <p>A formatura é gratuita.</p>
-            <p>O ingresso é 1 kg de alimento.</p>
-            <p>Tudo vira cesta básica para a comunidade.</p>
+            <p>O ingresso é 1 litro de leite.</p>
+            <p>Todo o leite é doado para a comunidade.</p>
           </div>
           <div class="hero-acoes">
             <a class="botao botao-branco" href="#escolas">
@@ -92,12 +95,12 @@ publicRoutes.get('/', async (c) => {
           <div class="passo">
             <span class="n">02</span>
             <h3>Diga quem vai com você</h3>
-            <p>Confirme a inscrição e informe quantos acompanhantes vai levar — até 3.</p>
+            <p>Ache o seu nome, preencha os seus dados e os de quem vai com você — até 3 acompanhantes.</p>
           </div>
           <div class="passo">
             <span class="n">03</span>
-            <h3>Leve 1 kg por pessoa</h3>
-            <p>No dia da formatura, cada pessoa entrega 1 kg de alimento. Esse é o ingresso.</p>
+            <h3>Leve 1 litro de leite por pessoa</h3>
+            <p>No dia da formatura, cada pessoa entrega 1 litro de leite. Esse é o ingresso.</p>
           </div>
         </div>
       </section>
@@ -137,16 +140,15 @@ publicRoutes.get('/', async (c) => {
       <section class="secao secao-final">
         <div class="faixa-verde">
           <div class="num">
-            1 kg
-            <small>por pessoa</small>
+            1 L
+            <small>de leite por pessoa</small>
           </div>
           <div>
-            <p class="kicker">Para onde vai o alimento</p>
-            <h2>O ingresso vira cesta básica</h2>
+            <p class="kicker">Para onde vai o leite</p>
+            <h2>O ingresso vira doação</h2>
             <p>
-              Todo o alimento recolhido na entrada da cerimônia é transformado em mini cestas
-              básicas e volta para famílias da comunidade da própria escola. Formando, família e
-              bairro saem ganhando no mesmo dia.
+              Todo o leite recolhido na entrada da cerimônia é doado para famílias da comunidade
+              da própria escola. Formando, família e bairro saem ganhando no mesmo dia.
             </p>
           </div>
         </div>
@@ -178,7 +180,7 @@ publicRoutes.get('/e/:slug', async (c) => {
     <Layout
       titulo={escola.nome}
       usuario={c.get('usuario')}
-      descricao={`Inscrição na Formatura Solidária da ${escola.nome}. O ingresso é 1 kg de alimento por pessoa, entregue no dia da cerimônia.`}
+      descricao={`Inscrição na Formatura Solidária da ${escola.nome}. O ingresso é 1 litro de leite por pessoa, entregue no dia da cerimônia.`}
     >
       <FaixaPagina
         estreito
@@ -286,58 +288,155 @@ const OPCOES_ACOMP = [
   { valor: '3', titulo: '3', rotulo: 'acompanhantes' },
 ];
 
-const FormInscricao = (p: { escola: Escola; aluno: Aluno; erro?: string; usuario: SessUser | null }) => (
-  <Layout titulo="Inscrição" usuario={p.usuario}>
-    <FaixaPagina
-      estreito
-      voltar={{ href: `/e/${p.escola.slug}`, texto: 'Não sou eu, voltar' }}
-      kicker={p.escola.nome}
-      titulo={p.aluno.nome}
-      lead={`${p.aluno.turma ?? 'Turma não informada'} · falta pouco para confirmar a sua vaga.`}
-    />
-    <main class="wrap wrap-estreito">
-      <div class="cartao cartao-destaque puxa-cima">
-        {p.erro && <Msg tipo="erro">{p.erro}</Msg>}
-        <form method="post" action={`/e/${p.escola.slug}/inscrever/${p.aluno.id}`}>
-          <label style="margin-top:0">Quantos acompanhantes você vai levar?</label>
-          <div class="opcoes">
-            {OPCOES_ACOMP.map((o) => (
-              <label class="opcao">
-                <input type="radio" name="qtd_acompanhantes" value={o.valor} required />
-                <b>{o.titulo}</b>
-                <span>{o.rotulo}</span>
-              </label>
-            ))}
-          </div>
-          <p class="ajuda">
-            Todo formando tem direito a até 3 acompanhantes. Precisa de mais? Depois de se
-            inscrever, fale com a direção da sua escola.
-          </p>
+type Valores = Record<string, string>;
 
-          <label for="tel">
-            Telefone / WhatsApp <span class="opcional">(para avisos da formatura)</span>
-          </label>
-          <input id="tel" type="tel" name="telefone" placeholder="(11) 9XXXX-XXXX" />
+// Mostra só as fichas dos acompanhantes escolhidos. Fichas escondidas ficam
+// desativadas, então o navegador não as valida nem as envia.
+const JS_FICHAS = `
+(function () {
+  function atualizar() {
+    var r = document.querySelector('input[name="qtd_acompanhantes"]:checked');
+    var n = r ? parseInt(r.value, 10) : 0;
+    var fichas = document.querySelectorAll('fieldset[data-acomp]');
+    for (var i = 0; i < fichas.length; i++) {
+      var ligada = parseInt(fichas[i].getAttribute('data-acomp'), 10) <= n;
+      fichas[i].hidden = !ligada;
+      fichas[i].disabled = !ligada;
+    }
+    var mesmos = document.querySelectorAll('input[data-mesmo]');
+    for (var j = 0; j < mesmos.length; j++) {
+      var campo = document.getElementById(mesmos[j].getAttribute('data-mesmo'));
+      if (!campo) continue;
+      var caixa = campo.closest('.campo-endereco');
+      if (caixa) caixa.hidden = mesmos[j].checked;
+      campo.disabled = mesmos[j].checked;
+    }
+  }
+  document.addEventListener('change', atualizar);
+  atualizar();
+})();
+`;
 
-          <label class="concordo">
-            <input type="checkbox" name="confirmo" value="1" required />
-            <span>
-              Confirmo que sou {p.aluno.nome} (ou responsável) e sei que cada pessoa leva 1 kg de
-              alimento não perecível no dia da formatura.
-            </span>
-          </label>
+const hoje = () => new Date().toISOString().slice(0, 10);
 
-          <div class="linha-acoes">
-            <button class="botao botao-verde botao-largo" type="submit">
-              Confirmar minha inscrição
-            </button>
-          </div>
-        </form>
+const CamposPessoa = (p: { prefixo: string; v: Valores; comNome?: boolean; mesmoEndereco?: boolean }) => {
+  const id = (c: string) => `${p.prefixo}_${c}`;
+  return (
+    <>
+      {p.comNome && (
+        <>
+          <label for={id('nome')}>Nome completo</label>
+          <input id={id('nome')} type="text" name={id('nome')} value={p.v[id('nome')] ?? ''} required minlength={3} maxlength={120} autocomplete="off" />
+        </>
+      )}
+      <div class="duas-col">
+        <div>
+          <label for={id('nascimento')}>Data de nascimento</label>
+          <input id={id('nascimento')} type="date" name={id('nascimento')} value={p.v[id('nascimento')] ?? ''} min="1900-01-01" max={hoje()} required />
+        </div>
+        <div>
+          <label for={id('telefone')}>Telefone / WhatsApp</label>
+          <input id={id('telefone')} type="tel" inputmode="tel" name={id('telefone')} value={p.v[id('telefone')] ?? ''} placeholder="(11) 9XXXX-XXXX" required maxlength={20} />
+        </div>
       </div>
-    </main>
-    <script dangerouslySetInnerHTML={{ __html: JS_OPCOES }} />
-  </Layout>
-);
+      {p.mesmoEndereco && (
+        <label class="check-linha">
+          <input type="checkbox" name={id('mesmo')} value="1" data-mesmo={id('endereco')} checked={p.v[id('mesmo')] === '1'} />
+          <span>Mora no mesmo endereço que o formando</span>
+        </label>
+      )}
+      <div class="campo-endereco">
+        <label for={id('endereco')}>Endereço</label>
+        <input id={id('endereco')} type="text" name={id('endereco')} value={p.v[id('endereco')] ?? ''} placeholder="Rua, número, bairro e cidade" required minlength={5} maxlength={200} autocomplete={p.comNome ? 'off' : 'street-address'} />
+      </div>
+    </>
+  );
+};
+
+const FormInscricao = (p: { escola: Escola; aluno: Aluno; erros?: string[]; valores?: Valores; usuario: SessUser | null }) => {
+  const v = p.valores ?? {};
+  const qtd = parseInt(v['qtd_acompanhantes'] ?? '', 10);
+  return (
+    <Layout titulo="Inscrição" usuario={p.usuario}>
+      <FaixaPagina
+        estreito
+        voltar={{ href: `/e/${p.escola.slug}`, texto: 'Não sou eu, voltar' }}
+        kicker={p.escola.nome}
+        titulo={p.aluno.nome}
+        lead={`${p.aluno.turma ?? 'Turma não informada'} · falta pouco para confirmar a sua vaga.`}
+      />
+      <main class="wrap wrap-estreito">
+        <div class="cartao cartao-destaque puxa-cima">
+          {p.erros && p.erros.length > 0 && (
+            <Msg tipo="erro">
+              {p.erros.length === 1 ? (
+                p.erros[0]
+              ) : (
+                <>
+                  Confira estes campos:
+                  <ul class="lista-erros">
+                    {p.erros.map((e) => (
+                      <li>{e}</li>
+                    ))}
+                  </ul>
+                </>
+              )}
+            </Msg>
+          )}
+          <form method="post" action={`/e/${p.escola.slug}/inscrever/${p.aluno.id}`}>
+            <fieldset class="ficha">
+              <legend>Seus dados</legend>
+              <p class="ajuda ficha-nome">
+                Nome: <b>{p.aluno.nome}</b> <span>(como veio da lista da escola)</span>
+              </p>
+              <CamposPessoa prefixo="aluno" v={v} />
+            </fieldset>
+
+            <label style="margin-top:28px">Quantos acompanhantes você vai levar?</label>
+            <div class="opcoes">
+              {OPCOES_ACOMP.map((o) => (
+                <label class={String(qtd) === o.valor ? 'opcao marcada' : 'opcao'}>
+                  <input type="radio" name="qtd_acompanhantes" value={o.valor} required checked={String(qtd) === o.valor} />
+                  <b>{o.titulo}</b>
+                  <span>{o.rotulo}</span>
+                </label>
+              ))}
+            </div>
+            <p class="ajuda">
+              Todo formando tem direito a até 3 acompanhantes. Precisa de mais? Depois de se
+              inscrever, fale com a direção da sua escola.
+            </p>
+
+            {[1, 2, 3].map((i) => {
+              const ligada = !isNaN(qtd) && i <= qtd;
+              return (
+                <fieldset class="ficha" data-acomp={String(i)} hidden={!ligada} disabled={!ligada}>
+                  <legend>Acompanhante {i}</legend>
+                  <CamposPessoa prefixo={`acomp${i}`} v={v} comNome mesmoEndereco />
+                </fieldset>
+              );
+            })}
+
+            <label class="concordo">
+              <input type="checkbox" name="confirmo" value="1" required />
+              <span>
+                Confirmo que sou {p.aluno.nome} (ou responsável), que os dados acima estão corretos
+                e que cada pessoa leva 1 litro de leite no dia da formatura.
+              </span>
+            </label>
+
+            <div class="linha-acoes">
+              <button class="botao botao-verde botao-largo" type="submit">
+                Confirmar minha inscrição
+              </button>
+            </div>
+          </form>
+        </div>
+      </main>
+      <script dangerouslySetInnerHTML={{ __html: JS_OPCOES + JS_FICHAS }} />
+    </Layout>
+  );
+};
 
 publicRoutes.get('/e/:slug/inscrever/:id', async (c) => {
   const dados = await carregarAlunoDaEscola(c);
@@ -374,20 +473,60 @@ publicRoutes.post('/e/:slug/inscrever/:id', async (c) => {
   if (aluno.inscrito_em) return c.redirect(`/e/${escola.slug}/inscrever/${aluno.id}`);
 
   const corpo = await c.req.parseBody();
-  const qtd = parseInt(String(corpo['qtd_acompanhantes'] ?? ''), 10);
-  const telefone = String(corpo['telefone'] ?? '').trim().slice(0, 30);
+  const v: Valores = {};
+  for (const [k, val] of Object.entries(corpo)) if (typeof val === 'string') v[k] = val.trim();
+
+  const erros: string[] = [];
+  const pessoa = (prefixo: string, rotulo: string, comNome: boolean, enderecoFormando?: string) => {
+    const nome = (v[`${prefixo}_nome`] ?? '').replace(/\s+/g, ' ').slice(0, 120);
+    const nascimento = v[`${prefixo}_nascimento`] ?? '';
+    const telefone = limparTelefone(v[`${prefixo}_telefone`] ?? '');
+    const mesmo = v[`${prefixo}_mesmo`] === '1' && enderecoFormando !== undefined;
+    const endereco = mesmo ? enderecoFormando! : (v[`${prefixo}_endereco`] ?? '').replace(/\s+/g, ' ').slice(0, 200);
+    if (comNome && nome.length < 3) erros.push(`${rotulo}: informe o nome completo.`);
+    if (!nascimentoValido(nascimento)) erros.push(`${rotulo}: informe uma data de nascimento válida.`);
+    if (!telefone) erros.push(`${rotulo}: informe o telefone com DDD, por exemplo (11) 91234-5678.`);
+    if (endereco.length < 5) erros.push(`${rotulo}: informe o endereço (rua, número e bairro).`);
+    return { nome, nascimento, telefone: telefone ?? '', endereco };
+  };
+
+  const formando = pessoa('aluno', 'Seus dados', false);
+  const qtd = parseInt(v['qtd_acompanhantes'] ?? '', 10);
+  const acomps: ReturnType<typeof pessoa>[] = [];
   if (isNaN(qtd) || qtd < 0 || qtd > 3) {
+    erros.push('Escolha quantos acompanhantes vai levar.');
+  } else {
+    for (let i = 1; i <= qtd; i++) acomps.push(pessoa(`acomp${i}`, `Acompanhante ${i}`, true, formando.endereco));
+  }
+  if (erros.length > 0) {
     return c.html(
-      <FormInscricao escola={escola} aluno={aluno} usuario={c.get('usuario')} erro="Escolha quantos acompanhantes vai levar." />
+      <FormInscricao escola={escola} aluno={aluno} usuario={c.get('usuario')} erros={erros} valores={v} />
     );
   }
 
+  // Tudo numa transação: a inscrição só vale se este pedido marcou o aluno,
+  // e as fichas só entram se o código gravado for o deste pedido.
   const codigo = gerarCodigo();
-  await c.env.DB.prepare(
-    `UPDATE alunos SET inscrito_em = datetime('now'), qtd_acompanhantes = ?, telefone = ?, codigo = ?
-     WHERE id = ? AND inscrito_em IS NULL`
-  ).bind(qtd, telefone || null, codigo, aluno.id).run();
-  await registrarAuditoria(c.env.DB, {
+  const db = c.env.DB;
+  const resultados = await db.batch([
+    db.prepare(
+      `UPDATE alunos SET inscrito_em = datetime('now'), qtd_acompanhantes = ?, telefone = ?, endereco = ?,
+         data_nascimento = ?, codigo = ?
+       WHERE id = ? AND inscrito_em IS NULL`
+    ).bind(qtd, formando.telefone, formando.endereco, formando.nascimento, codigo, aluno.id),
+    db.prepare(
+      'DELETE FROM acompanhantes WHERE aluno_id = ? AND EXISTS (SELECT 1 FROM alunos WHERE id = ? AND codigo = ?)'
+    ).bind(aluno.id, aluno.id, codigo),
+    ...acomps.map((a, i) =>
+      db.prepare(
+        `INSERT INTO acompanhantes (aluno_id, ordem, nome, endereco, data_nascimento, telefone)
+         SELECT ?, ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM alunos WHERE id = ? AND codigo = ?)`
+      ).bind(aluno.id, i + 1, a.nome, a.endereco, a.nascimento, a.telefone, aluno.id, codigo)
+    ),
+  ]);
+  if (!resultados[0].meta.changes) return c.redirect(`/e/${escola.slug}/inscrever/${aluno.id}`);
+
+  await registrarAuditoria(db, {
     acao: 'inscricao_publica',
     aluno_id: aluno.id,
     escola_id: escola.id,
@@ -409,6 +548,7 @@ publicRoutes.get('/c/:codigo', async (c) => {
 
   const acompanhantes = aluno.qtd_acompanhantes + aluno.qtd_extras;
   const pessoas = 1 + acompanhantes;
+  const fichas = await acompanhantesDoAluno(c.env.DB, aluno.id);
   const whatsappOficial = await lerConfig(c.env.DB, 'whatsapp_oficial');
   const localEvento = await lerConfig(c.env.DB, 'local_evento');
   const dataEvento = await lerConfig(c.env.DB, 'data_evento');
@@ -430,16 +570,29 @@ publicRoutes.get('/c/:codigo', async (c) => {
           </div>
           <div class="ticket-corpo">
             <div class="ticket-kg">
-              <b>{pessoas} kg</b>
-              <span>
-                de alimento não perecível — 1 kg por pessoa, entregue na entrada da cerimônia
-              </span>
+              <b>
+                {pessoas} {pessoas === 1 ? 'litro' : 'litros'}
+              </b>
+              <span>de leite — 1 litro por pessoa, entregue na entrada da cerimônia</span>
             </div>
 
             <dl class="dados">
               <dt>Pessoas</dt>
               <dd>
                 {pessoas} ({acompanhantes} acompanhante{acompanhantes === 1 ? '' : 's'} + você)
+                {fichas.length > 0 && (
+                  <span class="nomes">
+                    {fichas.map((f) => (
+                      <span>{f.nome}</span>
+                    ))}
+                    {aluno.qtd_extras > 0 && (
+                      <span>
+                        + {aluno.qtd_extras} convidado{aluno.qtd_extras === 1 ? '' : 's'} extra
+                        {aluno.qtd_extras === 1 ? '' : 's'}
+                      </span>
+                    )}
+                  </span>
+                )}
               </dd>
               <dt>Local</dt>
               <dd>{localEvento}</dd>

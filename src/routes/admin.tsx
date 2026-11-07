@@ -61,8 +61,8 @@ adminRoutes.get('/admin', async (c) => {
           <Kpi valor={escolas.length} rotulo="escolas na edição" />
           <Kpi valor={`${tot.inscritos} / ${tot.lista}`} rotulo="inscritos no total" />
           <Kpi valor={tot.ingressos} rotulo="ingressos usados" />
-          <Kpi valor={`${tot.ingressos} kg`} rotulo="esperados no dia" verde />
-          {tot.kg > 0 && <Kpi valor={`${tot.kg} kg`} rotulo="arrecadados (lançados)" verde />}
+          <Kpi valor={`${tot.ingressos} L`} rotulo="de leite esperados no dia" verde />
+          {tot.kg > 0 && <Kpi valor={`${tot.kg} L`} rotulo="de leite arrecadados (lançados)" verde />}
         </div>
 
         <div class="linha-acoes">
@@ -77,8 +77,8 @@ adminRoutes.get('/admin', async (c) => {
               <th class="num">Inscritos</th>
               <th class="num">Ingressos</th>
               <th class="num">Saldo</th>
-              <th class="num">Kg esper.</th>
-              <th class="num">Kg arrec.</th>
+              <th class="num">Litros esper.</th>
+              <th class="num">Litros arrec.</th>
               <th>Status</th>
               <th></th>
             </tr>

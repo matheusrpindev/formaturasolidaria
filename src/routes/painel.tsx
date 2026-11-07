@@ -3,9 +3,13 @@ import type { Env, SessUser } from '../auth';
 import { hashSenha, verificarSenha } from '../auth';
 import { FaixaPagina, IconeBusca, Layout, Kpi, Msg } from '../ui';
 import {
+  type Acompanhante,
   type Aluno,
   type Escola,
+  acompanhantesDoAluno,
   dataHoraBrasilia,
+  formatarData,
+  formatarTelefone,
   gerarCodigo,
   kpisEscola,
   normalizar,
@@ -72,12 +76,12 @@ async function renderDashboard(c: any, escolaId: number, somenteLeitura: boolean
           <Kpi valor={`${kpis.inscritos} / ${kpis.total_lista}`} rotulo="inscritos sobre a lista de formandos" />
           <Kpi valor={kpis.ingressos} rotulo="ingressos usados (formandos + acompanhantes)" />
           <Kpi valor={kpis.saldo >= 0 ? `+${kpis.saldo}` : `${kpis.saldo}`} rotulo="saldo de convites para a direção realocar" />
-          <Kpi valor={`${kpis.ingressos} kg`} rotulo="esperados no dia — 1 kg por pessoa" verde />
+          <Kpi valor={`${kpis.ingressos} L`} rotulo="de leite esperados no dia — 1 litro por pessoa" verde />
           {escola.capacidade != null && (
             <Kpi valor={`${kpis.ingressos} / ${escola.capacidade}`} rotulo="lugares usados sobre a capacidade" />
           )}
           {escola.kg_arrecadados != null && (
-            <Kpi valor={`${escola.kg_arrecadados} kg`} rotulo="arrecadados no evento (lançado após a cerimônia)" verde />
+            <Kpi valor={`${escola.kg_arrecadados} L`} rotulo="de leite arrecadados no evento (lançado após a cerimônia)" verde />
           )}
         </div>
 
@@ -104,7 +108,7 @@ async function renderDashboard(c: any, escolaId: number, somenteLeitura: boolean
               <th>Turma</th>
               <th class="num">Acomp.</th>
               <th class="num">Extras</th>
-              <th class="num">Kg</th>
+              <th class="num">Litros</th>
               <th>Situação</th>
               {!somenteLeitura && <th></th>}
             </tr>
@@ -159,16 +163,16 @@ async function renderDashboard(c: any, escolaId: number, somenteLeitura: boolean
             <div class="cartao">
               <h2>Fechamento do evento</h2>
               <p class="ajuda">
-                Depois da cerimônia, lance aqui o total de alimentos que a escola arrecadou no dia.
+                Depois da cerimônia, lance aqui quantos litros de leite a escola arrecadou no dia.
               </p>
               <form method="post" action="/painel/kg">
-                <label for="kg">Total arrecadado (kg)</label>
+                <label for="kg">Total arrecadado (litros)</label>
                 <input
                   id="kg"
                   type="number"
                   name="kg"
                   min="0"
-                  step="0.1"
+                  step="1"
                   value={escola.kg_arrecadados ?? ''}
                   required
                 />
@@ -214,7 +218,8 @@ async function carregarAlunoPermitido(c: any): Promise<{ u: SessUser; aluno: Alu
   return { u, aluno, escola };
 }
 
-function paginaFicha(c: any, u: SessUser, aluno: Aluno, escola: Escola, aviso?: { ok?: string; erro?: string }) {
+async function paginaFicha(c: any, u: SessUser, aluno: Aluno, escola: Escola, aviso?: { ok?: string; erro?: string }) {
+  const fichas: Acompanhante[] = await acompanhantesDoAluno(c.env.DB, aluno.id);
   const urlBase = new URL(c.req.url);
   const voltar = u.papel === 'admin' ? `/painel/escola/${escola.id}` : '/painel';
   return c.html(
@@ -245,6 +250,44 @@ function paginaFicha(c: any, u: SessUser, aluno: Aluno, escola: Escola, aviso?: 
                   </a>
                 </p>
               )}
+              <h3 style="margin:22px 0 0">Dados do formando</h3>
+              <dl class="dados" style="margin-top:10px">
+                <dt>Nascimento</dt>
+                <dd>{aluno.data_nascimento ? formatarData(aluno.data_nascimento) : '—'}</dd>
+                <dt>Telefone</dt>
+                <dd>{aluno.telefone ? formatarTelefone(aluno.telefone) : '—'}</dd>
+                <dt>Endereço</dt>
+                <dd>{aluno.endereco ?? '—'}</dd>
+              </dl>
+
+              <h3 style="margin:24px 0 0">Acompanhantes</h3>
+              {fichas.length === 0 ? (
+                <p class="ajuda">
+                  {aluno.qtd_acompanhantes > 0
+                    ? 'Inscrição feita sem as fichas dos acompanhantes (inscrição manual ou anterior ao formulário novo).'
+                    : 'Nenhum acompanhante.'}
+                </p>
+              ) : (
+                <div class="ficha-lista">
+                  {fichas.map((f) => (
+                    <div class="ficha-item">
+                      <b>
+                        {f.ordem}. {f.nome}
+                      </b>
+                      <dl class="dados">
+                        <dt>Nascimento</dt>
+                        <dd>{formatarData(f.data_nascimento)}</dd>
+                        <dt>Telefone</dt>
+                        <dd>{formatarTelefone(f.telefone)}</dd>
+                        <dt>Endereço</dt>
+                        <dd>{f.endereco}</dd>
+                      </dl>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <hr class="separador" />
               <form method="post" action={`/painel/aluno/${aluno.id}`}>
                 <label for="f-acomp">Acompanhantes (direito de todo formando: até 3)</label>
                 <select id="f-acomp" name="qtd_acompanhantes">
@@ -340,10 +383,13 @@ painelRoutes.post('/painel/aluno/:id', async (c) => {
   const acao = String(corpo['acao'] ?? 'salvar');
 
   if (acao === 'cancelar') {
-    await c.env.DB.prepare(
-      `UPDATE alunos SET inscrito_em = NULL, codigo = NULL, qtd_acompanhantes = 0, qtd_extras = 0,
-       extra_autorizado_por = NULL WHERE id = ?`
-    ).bind(aluno.id).run();
+    await c.env.DB.batch([
+      c.env.DB.prepare('DELETE FROM acompanhantes WHERE aluno_id = ?').bind(aluno.id),
+      c.env.DB.prepare(
+        `UPDATE alunos SET inscrito_em = NULL, codigo = NULL, qtd_acompanhantes = 0, qtd_extras = 0,
+         extra_autorizado_por = NULL WHERE id = ?`
+      ).bind(aluno.id),
+    ]);
     await registrarAuditoria(c.env.DB, {
       usuario_id: u.id,
       acao: 'cancelou_inscricao',
@@ -378,10 +424,14 @@ painelRoutes.post('/painel/aluno/:id', async (c) => {
     if (extras > 0 && !autorizadoPor) {
       return paginaFicha(c, u, aluno, escola, { erro: 'Convidado extra precisa do nome de quem autorizou na direção.' });
     }
-    await c.env.DB.prepare(
-      `UPDATE alunos SET qtd_acompanhantes = ?, qtd_extras = ?, extra_autorizado_por = ?, telefone = ?, observacoes = ?
-       WHERE id = ?`
-    ).bind(qtd, extras, autorizadoPor, telefone, obs, aluno.id).run();
+    await c.env.DB.batch([
+      c.env.DB.prepare(
+        `UPDATE alunos SET qtd_acompanhantes = ?, qtd_extras = ?, extra_autorizado_por = ?, telefone = ?, observacoes = ?
+         WHERE id = ?`
+      ).bind(qtd, extras, autorizadoPor, telefone, obs, aluno.id),
+      // Se a comissão reduziu o número de acompanhantes, as fichas a mais saem.
+      c.env.DB.prepare('DELETE FROM acompanhantes WHERE aluno_id = ? AND ordem > ?').bind(aluno.id, qtd),
+    ]);
     await registrarAuditoria(c.env.DB, {
       usuario_id: u.id,
       acao: 'editou_aluno',
@@ -417,7 +467,7 @@ painelRoutes.post('/painel/aluno-novo', async (c) => {
   return c.redirect(`/painel/aluno/${r.meta.last_row_id}`);
 });
 
-// ---------- Fechamento: total de kg ----------
+// ---------- Fechamento: total de litros de leite (coluna kg_arrecadados) ----------
 painelRoutes.post('/painel/kg', async (c) => {
   const u = exigirLogin(c);
   if (u instanceof Response) return u;
@@ -430,7 +480,7 @@ painelRoutes.post('/painel/kg', async (c) => {
     usuario_id: u.id,
     acao: 'lancou_kg',
     escola_id: u.escola_id,
-    detalhe: `${kg} kg`,
+    detalhe: `${kg} L`,
   });
   return c.redirect('/painel');
 });
