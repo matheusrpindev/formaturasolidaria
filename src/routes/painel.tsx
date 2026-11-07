@@ -6,6 +6,7 @@ import {
   type Acompanhante,
   type Aluno,
   type Escola,
+  SQL_SALDO,
   acompanhantesDoAluno,
   dataHoraBrasilia,
   formatarData,
@@ -46,6 +47,11 @@ async function renderDashboard(c: any, escolaId: number, somenteLeitura: boolean
   }
   sql += ' ORDER BY nome LIMIT 500';
   const alunos = (await c.env.DB.prepare(sql).bind(...binds).all<Aluno>()).results;
+  const fila = (
+    await c.env.DB.prepare(
+      'SELECT * FROM alunos WHERE escola_id = ? AND inscrito_em IS NOT NULL AND qtd_espera > 0 ORDER BY espera_desde, id'
+    ).bind(escola.id).all<Aluno>()
+  ).results;
 
   const linkFiltro = (f: string, rotulo: string) => (
     <a href={`?f=${f}${q ? `&q=${encodeURIComponent(q)}` : ''}`} class={filtro === f ? 'ativo' : ''}>
@@ -75,7 +81,11 @@ async function renderDashboard(c: any, escolaId: number, somenteLeitura: boolean
         <div class="kpis">
           <Kpi valor={`${kpis.inscritos} / ${kpis.total_lista}`} rotulo="inscritos sobre a lista de formandos" />
           <Kpi valor={kpis.ingressos} rotulo="ingressos usados (formandos + acompanhantes)" />
-          <Kpi valor={kpis.saldo >= 0 ? `+${kpis.saldo}` : `${kpis.saldo}`} rotulo="saldo de convites para a direção realocar" />
+          <Kpi valor={kpis.saldo} rotulo="vagas sobrando (de quem levou menos de 3)" />
+          <Kpi
+            valor={kpis.espera}
+            rotulo={`vagas a mais em espera${kpis.familias_espera ? ` (${kpis.familias_espera} família${kpis.familias_espera === 1 ? '' : 's'})` : ''}`}
+          />
           <Kpi valor={`${kpis.ingressos} L`} rotulo="de leite esperados no dia — 1 litro por pessoa" verde />
           {escola.capacidade != null && (
             <Kpi valor={`${kpis.ingressos} / ${escola.capacidade}`} rotulo="lugares usados sobre a capacidade" />
@@ -84,6 +94,45 @@ async function renderDashboard(c: any, escolaId: number, somenteLeitura: boolean
             <Kpi valor={`${escola.kg_arrecadados} L`} rotulo="de leite arrecadados no evento (lançado após a cerimônia)" verde />
           )}
         </div>
+
+        {fila.length > 0 && (
+          <div class="cartao">
+            <h2>Fila de espera</h2>
+            <p class="ajuda">
+              Famílias que pediram mais de 3 acompanhantes quando não havia vaga sobrando, por ordem de
+              pedido. Vagas sobrando agora: <b>{Math.max(0, kpis.saldo)}</b>.
+              {!somenteLeitura && kpis.saldo > 0 && ' Ao liberar, avise a família pelo telefone.'}
+            </p>
+            <div class="fila">
+              {fila.map((a: Aluno) => (
+                <div class="fila-item">
+                  <div>
+                    <div class="nome">{a.nome}</div>
+                    <div class="meta">
+                      {a.turma ?? 'Turma não informada'} · pediu {a.qtd_espera} a mais · desde{' '}
+                      {dataHoraBrasilia(a.espera_desde)}
+                      {a.telefone ? ` · ${formatarTelefone(a.telefone)}` : ''}
+                    </div>
+                  </div>
+                  {!somenteLeitura && (
+                    <div class="linha-acoes" style="margin:0">
+                      {kpis.saldo > 0 && (
+                        <form method="post" action={`/painel/aluno/${a.id}`} style="margin:0">
+                          <button class="botao botao-verde botao-min" type="submit" name="acao" value="liberar">
+                            Liberar {Math.min(a.qtd_espera, kpis.saldo)}
+                          </button>
+                        </form>
+                      )}
+                      <a class="botao botao-borda botao-min" href={`/painel/aluno/${a.id}`}>
+                        Ficha
+                      </a>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div class="barra-filtro">
           <div class="filtros">
@@ -124,7 +173,14 @@ async function renderDashboard(c: any, escolaId: number, somenteLeitura: boolean
                 <td class="num">{a.inscrito_em ? 1 + a.qtd_acompanhantes + a.qtd_extras : '—'}</td>
                 <td>
                   {a.inscrito_em ? (
-                    <span class="etiqueta etiqueta-verde">Inscrito</span>
+                    <>
+                      <span class="etiqueta etiqueta-verde">Inscrito</span>
+                      {a.qtd_espera > 0 && (
+                        <span class="etiqueta etiqueta-aviso" style="margin-left:6px">
+                          +{a.qtd_espera} em espera
+                        </span>
+                      )}
+                    </>
                   ) : (
                     <span class="etiqueta etiqueta-cinza">Não inscrito</span>
                   )}
@@ -220,6 +276,8 @@ async function carregarAlunoPermitido(c: any): Promise<{ u: SessUser; aluno: Alu
 
 async function paginaFicha(c: any, u: SessUser, aluno: Aluno, escola: Escola, aviso?: { ok?: string; erro?: string }) {
   const fichas: Acompanhante[] = await acompanhantesDoAluno(c.env.DB, aluno.id);
+  const saldoRow = await c.env.DB.prepare(`SELECT ${SQL_SALDO} AS saldo`).bind(escola.id).first<{ saldo: number }>();
+  const saldo = saldoRow?.saldo ?? 0;
   const urlBase = new URL(c.req.url);
   const voltar = u.papel === 'admin' ? `/painel/escola/${escola.id}` : '/painel';
   return c.html(
@@ -270,9 +328,15 @@ async function paginaFicha(c: any, u: SessUser, aluno: Aluno, escola: Escola, av
               ) : (
                 <div class="ficha-lista">
                   {fichas.map((f) => (
-                    <div class="ficha-item">
+                    <div class={f.situacao === 'espera' ? 'ficha-item em-espera' : 'ficha-item'}>
                       <b>
                         {f.ordem}. {f.nome}
+                        {f.ordem > 3 && f.situacao === 'confirmado' && (
+                          <span class="etiqueta etiqueta-verde" style="margin-left:8px">vaga a mais</span>
+                        )}
+                        {f.situacao === 'espera' && (
+                          <span class="etiqueta etiqueta-aviso" style="margin-left:8px">em espera</span>
+                        )}
                       </b>
                       <dl class="dados">
                         <dt>Nascimento</dt>
@@ -284,6 +348,20 @@ async function paginaFicha(c: any, u: SessUser, aluno: Aluno, escola: Escola, av
                       </dl>
                     </div>
                   ))}
+                </div>
+              )}
+
+              {aluno.qtd_espera > 0 && (
+                <div class="msg msg-aviso" style="margin-top:18px">
+                  Pediu {aluno.qtd_espera} vaga{aluno.qtd_espera === 1 ? '' : 's'} a mais, em espera desde{' '}
+                  {dataHoraBrasilia(aluno.espera_desde)}. Vagas sobrando na escola agora: {Math.max(0, saldo)}.
+                  {saldo > 0 && (
+                    <form method="post" action={`/painel/aluno/${aluno.id}`} style="margin:10px 0 0">
+                      <button class="botao botao-verde botao-min" type="submit" name="acao" value="liberar">
+                        Liberar {Math.min(aluno.qtd_espera, saldo)} vaga{Math.min(aluno.qtd_espera, saldo) === 1 ? '' : 's'}
+                      </button>
+                    </form>
+                  )}
                 </div>
               )}
 
@@ -307,6 +385,9 @@ async function paginaFicha(c: any, u: SessUser, aluno: Aluno, escola: Escola, av
                   max="20"
                   value={String(aluno.qtd_extras)}
                 />
+                <label for="f-espera">Vagas a mais em espera</label>
+                <input id="f-espera" type="number" name="qtd_espera" min="0" max="20" value={String(aluno.qtd_espera)} />
+                <p class="ajuda">Para conceder uma vaga em espera, passe 1 de “em espera” para “convidados extras”.</p>
                 <label for="f-aut">Quem autorizou os extras</label>
                 <input
                   id="f-aut"
@@ -387,7 +468,7 @@ painelRoutes.post('/painel/aluno/:id', async (c) => {
       c.env.DB.prepare('DELETE FROM acompanhantes WHERE aluno_id = ?').bind(aluno.id),
       c.env.DB.prepare(
         `UPDATE alunos SET inscrito_em = NULL, codigo = NULL, qtd_acompanhantes = 0, qtd_extras = 0,
-         extra_autorizado_por = NULL WHERE id = ?`
+         extra_autorizado_por = NULL, qtd_espera = 0, espera_desde = NULL WHERE id = ?`
       ).bind(aluno.id),
     ]);
     await registrarAuditoria(c.env.DB, {
@@ -397,6 +478,44 @@ painelRoutes.post('/painel/aluno/:id', async (c) => {
       escola_id: escola.id,
     });
     return c.redirect(u.papel === 'admin' ? `/painel/escola/${escola.id}` : '/painel');
+  }
+
+  if (acao === 'liberar') {
+    if (!aluno.inscrito_em || aluno.qtd_espera <= 0) return paginaFicha(c, u, aluno, escola);
+    // Passa para este aluno o que houver de vaga sobrando, até o que ele pediu.
+    const db = c.env.DB;
+    const [r1] = await db.batch([
+      db.prepare(
+        `UPDATE alunos SET
+           extra_autorizado_por = COALESCE(extra_autorizado_por, ?),
+           qtd_extras = qtd_extras + MAX(0, MIN(qtd_espera, ${SQL_SALDO})),
+           qtd_espera = qtd_espera - MAX(0, MIN(qtd_espera, ${SQL_SALDO}))
+         WHERE id = ? AND inscrito_em IS NOT NULL`
+      ).bind(`Fila de espera (liberado por ${u.nome})`, escola.id, escola.id, aluno.id),
+      db.prepare(
+        `UPDATE acompanhantes SET situacao = 'confirmado'
+         WHERE aluno_id = ? AND ordem <= (SELECT qtd_acompanhantes + qtd_extras FROM alunos WHERE id = ?)`
+      ).bind(aluno.id, aluno.id),
+      db.prepare("UPDATE alunos SET espera_desde = NULL WHERE id = ? AND qtd_espera = 0").bind(aluno.id),
+    ]);
+    const depois = (await db.prepare('SELECT * FROM alunos WHERE id = ?').bind(aluno.id).first<Aluno>())!;
+    const liberadas = depois.qtd_extras - aluno.qtd_extras;
+    if (liberadas > 0) {
+      await registrarAuditoria(db, {
+        usuario_id: u.id,
+        acao: 'liberou_vagas',
+        aluno_id: aluno.id,
+        escola_id: escola.id,
+        detalhe: `${liberadas} vaga(s) da fila de espera`,
+      });
+    }
+    const voltarPainel = c.req.header('referer')?.includes('/painel/aluno/') !== true;
+    const msg =
+      liberadas > 0
+        ? `${liberadas} vaga${liberadas === 1 ? '' : 's'} liberada${liberadas === 1 ? '' : 's'} para ${aluno.nome}. Avise a família.`
+        : 'Não há vagas sobrando agora.';
+    if (voltarPainel) return renderDashboard(c, escola.id, false, liberadas > 0 ? { ok: msg } : { erro: msg });
+    return paginaFicha(c, u, depois, escola, liberadas > 0 ? { ok: msg } : { erro: msg });
   }
 
   const qtd = Math.min(3, Math.max(0, parseInt(String(corpo['qtd_acompanhantes'] ?? '0'), 10) || 0));
@@ -421,23 +540,29 @@ painelRoutes.post('/painel/aluno/:id', async (c) => {
     const extras = Math.min(20, Math.max(0, parseInt(String(corpo['qtd_extras'] ?? '0'), 10) || 0));
     const autorizadoPor = String(corpo['extra_autorizado_por'] ?? '').trim().slice(0, 80) || null;
     const obs = String(corpo['observacoes'] ?? '').trim().slice(0, 500) || null;
+    const espera = Math.min(20, Math.max(0, parseInt(String(corpo['qtd_espera'] ?? '0'), 10) || 0));
     if (extras > 0 && !autorizadoPor) {
       return paginaFicha(c, u, aluno, escola, { erro: 'Convidado extra precisa do nome de quem autorizou na direção.' });
     }
+    const confirmadas = qtd + extras;
     await c.env.DB.batch([
       c.env.DB.prepare(
-        `UPDATE alunos SET qtd_acompanhantes = ?, qtd_extras = ?, extra_autorizado_por = ?, telefone = ?, observacoes = ?
+        `UPDATE alunos SET qtd_acompanhantes = ?, qtd_extras = ?, extra_autorizado_por = ?, telefone = ?, observacoes = ?,
+           qtd_espera = ?, espera_desde = CASE WHEN ? > 0 THEN COALESCE(espera_desde, datetime('now')) END
          WHERE id = ?`
-      ).bind(qtd, extras, autorizadoPor, telefone, obs, aluno.id),
-      // Se a comissão reduziu o número de acompanhantes, as fichas a mais saem.
-      c.env.DB.prepare('DELETE FROM acompanhantes WHERE aluno_id = ? AND ordem > ?').bind(aluno.id, qtd),
+      ).bind(qtd, extras, autorizadoPor, telefone, obs, espera, espera, aluno.id),
+      // Fichas: as primeiras ficam confirmadas, as seguintes em espera; o que passar disso sai.
+      c.env.DB.prepare(
+        `UPDATE acompanhantes SET situacao = CASE WHEN ordem <= ? THEN 'confirmado' ELSE 'espera' END WHERE aluno_id = ?`
+      ).bind(confirmadas, aluno.id),
+      c.env.DB.prepare('DELETE FROM acompanhantes WHERE aluno_id = ? AND ordem > ?').bind(aluno.id, confirmadas + espera),
     ]);
     await registrarAuditoria(c.env.DB, {
       usuario_id: u.id,
       acao: 'editou_aluno',
       aluno_id: aluno.id,
       escola_id: escola.id,
-      detalhe: `acomp=${qtd} extras=${extras}`,
+      detalhe: `acomp=${qtd} extras=${extras} espera=${espera}`,
     });
   }
 

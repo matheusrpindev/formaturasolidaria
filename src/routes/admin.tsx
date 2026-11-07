@@ -76,7 +76,8 @@ adminRoutes.get('/admin', async (c) => {
               <th>Escola</th>
               <th class="num">Inscritos</th>
               <th class="num">Ingressos</th>
-              <th class="num">Saldo</th>
+              <th class="num">Sobrando</th>
+              <th class="num">Em espera</th>
               <th class="num">Litros esper.</th>
               <th class="num">Litros arrec.</th>
               <th>Status</th>
@@ -90,6 +91,7 @@ adminRoutes.get('/admin', async (c) => {
                 </td>
                 <td class="num">{k.ingressos}</td>
                 <td class="num">{k.saldo}</td>
+                <td class="num">{k.espera || '—'}</td>
                 <td class="num">{k.ingressos}</td>
                 <td class="num">{e.kg_arrecadados ?? '—'}</td>
                 <td>

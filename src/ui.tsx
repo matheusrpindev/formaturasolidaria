@@ -228,7 +228,7 @@ select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmln
 .busca-grande input { min-height: 54px; font-size: 17px; }
 
 /* Opções (acompanhantes) */
-.opcoes { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 6px; }
+.opcoes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 6px; }
 .opcao {
   position: relative; border: 1px solid var(--line-2); border-radius: var(--r); background: var(--surface);
   padding: 16px 10px; text-align: center; cursor: pointer; display: block; margin: 0; font-weight: 600;
@@ -240,7 +240,7 @@ select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmln
   overflow: hidden; white-space: nowrap; clip: rect(0 0 0 0); clip-path: inset(50%);
 }
 .opcao b { display: block; font-size: 26px; font-weight: 800; line-height: 1.1; letter-spacing: -0.03em; }
-.opcao span { display: block; font-size: 12.5px; color: var(--muted); font-weight: 500; margin-top: 2px; }
+.opcao span { display: block; overflow-wrap: anywhere; font-size: 12px; color: var(--muted); font-weight: 500; margin-top: 2px; }
 /* Regras separadas de propósito: se o navegador não entender :has(),
    ele descarta só aquela regra e a classe .marcada (via JS) continua valendo. */
 .opcao.marcada { border-color: var(--verde); background: var(--verde-suave); box-shadow: inset 0 0 0 1px var(--verde); }
@@ -262,6 +262,16 @@ select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmln
 .check-linha { display: flex; gap: 10px; align-items: center; font-weight: 500; color: var(--fg-2); margin: 18px 0 0; cursor: pointer; }
 .check-linha input { width: 18px; height: 18px; margin: 0; accent-color: var(--verde); flex: 0 0 auto; }
 input[type=date] { color-scheme: dark; min-height: 48px; }
+.pedido-extra { border: 1px solid var(--verde-borda); background: var(--verde-suave); border-radius: var(--r); padding: 16px 18px; margin: 16px 0 0; min-width: 0; }
+.pedido-extra .ajuda { margin-bottom: 0; }
+.espera-aviso { font-weight: 500; line-height: 1.5; }
+.espera-aviso b { font-weight: 700; }
+.fila { border-top: 1px solid var(--line); }
+.fila-item { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; padding: 14px 0; border-bottom: 1px solid var(--line); }
+.fila-item > div:first-child { min-width: 0; }
+.fila-item .nome { font-weight: 700; }
+.fila-item .meta { color: var(--muted); font-size: 14px; }
+.ficha-item.em-espera { border-style: dashed; }
 .lista-erros { margin: 8px 0 0; padding-left: 18px; font-weight: 500; }
 .lista-erros li + li { margin-top: 4px; }
 .dados dd .nomes { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; color: var(--fg-2); font-weight: 500; }
@@ -365,7 +375,7 @@ td a:hover { text-decoration: underline; }
 .rodape-inner a:hover { text-decoration: underline; }
 
 /* ---------- Responsivo ---------- */
-@media (min-width: 520px) { .opcoes { grid-template-columns: repeat(4, 1fr); } }
+@media (min-width: 520px) { .opcoes { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
 @media (max-width: 720px) {
   .faixa-verde { grid-template-columns: 1fr; gap: 20px; }
   .secao { padding-top: 72px; }

@@ -4,8 +4,12 @@ import { FaixaPagina, IconeBusca, JS_OPCOES, Layout, Msg } from '../ui';
 import {
   type Aluno,
   type Escola,
+  MAX_EXTRAS_PEDIDO,
+  SQL_SALDO,
+  VAGAS_POR_ALUNO,
   acompanhantesDoAluno,
   formatarData,
+  formatarTelefone,
   limparTelefone,
   nascimentoValido,
   gerarCodigo,
@@ -286,7 +290,9 @@ const OPCOES_ACOMP = [
   { valor: '1', titulo: '1', rotulo: 'acompanhante' },
   { valor: '2', titulo: '2', rotulo: 'acompanhantes' },
   { valor: '3', titulo: '3', rotulo: 'acompanhantes' },
+  { valor: 'mais', titulo: '+3', rotulo: 'mais de 3' },
 ];
+const MAX_FICHAS = VAGAS_POR_ALUNO + MAX_EXTRAS_PEDIDO;
 
 type Valores = Record<string, string>;
 
@@ -296,7 +302,11 @@ const JS_FICHAS = `
 (function () {
   function atualizar() {
     var r = document.querySelector('input[name="qtd_acompanhantes"]:checked');
-    var n = r ? parseInt(r.value, 10) : 0;
+    var mais = !!r && r.value === 'mais';
+    var pedido = document.querySelector('[data-pedido-extra]');
+    if (pedido) { pedido.hidden = !mais; pedido.disabled = !mais; }
+    var sel = document.querySelector('select[name="qtd_extras_pedido"]');
+    var n = !r ? 0 : mais ? 3 + (sel ? parseInt(sel.value, 10) || 0 : 0) : parseInt(r.value, 10);
     var fichas = document.querySelectorAll('fieldset[data-acomp]');
     for (var i = 0; i < fichas.length; i++) {
       var ligada = parseInt(fichas[i].getAttribute('data-acomp'), 10) <= n;
@@ -355,7 +365,10 @@ const CamposPessoa = (p: { prefixo: string; v: Valores; comNome?: boolean; mesmo
 
 const FormInscricao = (p: { escola: Escola; aluno: Aluno; erros?: string[]; valores?: Valores; usuario: SessUser | null }) => {
   const v = p.valores ?? {};
-  const qtd = parseInt(v['qtd_acompanhantes'] ?? '', 10);
+  const escolha = v['qtd_acompanhantes'] ?? '';
+  const mais = escolha === 'mais';
+  const pedido = Math.min(MAX_EXTRAS_PEDIDO, Math.max(1, parseInt(v['qtd_extras_pedido'] ?? '1', 10) || 1));
+  const qtd = mais ? VAGAS_POR_ALUNO + pedido : parseInt(escolha, 10);
   return (
     <Layout titulo="Inscrição" usuario={p.usuario}>
       <FaixaPagina
@@ -395,23 +408,43 @@ const FormInscricao = (p: { escola: Escola; aluno: Aluno; erros?: string[]; valo
             <label style="margin-top:28px">Quantos acompanhantes você vai levar?</label>
             <div class="opcoes">
               {OPCOES_ACOMP.map((o) => (
-                <label class={String(qtd) === o.valor ? 'opcao marcada' : 'opcao'}>
-                  <input type="radio" name="qtd_acompanhantes" value={o.valor} required checked={String(qtd) === o.valor} />
+                <label class={escolha === o.valor ? 'opcao marcada' : 'opcao'}>
+                  <input type="radio" name="qtd_acompanhantes" value={o.valor} required checked={escolha === o.valor} />
                   <b>{o.titulo}</b>
                   <span>{o.rotulo}</span>
                 </label>
               ))}
             </div>
             <p class="ajuda">
-              Todo formando tem direito a até 3 acompanhantes. Precisa de mais? Depois de se
-              inscrever, fale com a direção da sua escola.
+              Todo formando tem direito a até 3 acompanhantes. Precisa de mais? Escolha “mais de 3”.
             </p>
 
-            {[1, 2, 3].map((i) => {
+            <fieldset class="pedido-extra" data-pedido-extra hidden={!mais} disabled={!mais}>
+              <label for="qtd_extras_pedido" style="margin-top:0">
+                Quantas pessoas a mais, além das 3?
+              </label>
+              <select id="qtd_extras_pedido" name="qtd_extras_pedido">
+                {Array.from({ length: MAX_EXTRAS_PEDIDO }, (_, k) => k + 1).map((n) => (
+                  <option value={String(n)} selected={pedido === n}>
+                    {n} {n === 1 ? 'pessoa' : 'pessoas'} a mais
+                  </option>
+                ))}
+              </select>
+              <p class="ajuda">
+                As 3 primeiras estão garantidas. As vagas a mais vêm das vagas que outros formandos não
+                usaram: se houver vaga sobrando, ela já fica com você. Se não houver agora, o pedido fica
+                em espera e a comissão entra em contato se abrirem vagas.
+              </p>
+            </fieldset>
+
+            {Array.from({ length: MAX_FICHAS }, (_, k) => k + 1).map((i) => {
               const ligada = !isNaN(qtd) && i <= qtd;
               return (
                 <fieldset class="ficha" data-acomp={String(i)} hidden={!ligada} disabled={!ligada}>
-                  <legend>Acompanhante {i}</legend>
+                  <legend>
+                    Acompanhante {i}
+                    {i > VAGAS_POR_ALUNO ? ' · vaga a mais' : ''}
+                  </legend>
                   <CamposPessoa prefixo={`acomp${i}`} v={v} comNome mesmoEndereco />
                 </fieldset>
               );
@@ -491,12 +524,22 @@ publicRoutes.post('/e/:slug/inscrever/:id', async (c) => {
   };
 
   const formando = pessoa('aluno', 'Seus dados', false);
-  const qtd = parseInt(v['qtd_acompanhantes'] ?? '', 10);
+  const escolha = v['qtd_acompanhantes'] ?? '';
+  let qtd = parseInt(escolha, 10); // acompanhantes dentro do direito (0 a 3)
+  let pedido = 0; // vagas a mais pedidas
+  if (escolha === 'mais') {
+    qtd = VAGAS_POR_ALUNO;
+    pedido = parseInt(v['qtd_extras_pedido'] ?? '', 10);
+    if (isNaN(pedido) || pedido < 1 || pedido > MAX_EXTRAS_PEDIDO) {
+      erros.push(`Diga quantas pessoas a mais vai levar (de 1 a ${MAX_EXTRAS_PEDIDO}).`);
+      pedido = 0;
+    }
+  }
   const acomps: ReturnType<typeof pessoa>[] = [];
-  if (isNaN(qtd) || qtd < 0 || qtd > 3) {
+  if (isNaN(qtd) || qtd < 0 || qtd > VAGAS_POR_ALUNO) {
     erros.push('Escolha quantos acompanhantes vai levar.');
   } else {
-    for (let i = 1; i <= qtd; i++) acomps.push(pessoa(`acomp${i}`, `Acompanhante ${i}`, true, formando.endereco));
+    for (let i = 1; i <= qtd + pedido; i++) acomps.push(pessoa(`acomp${i}`, `Acompanhante ${i}`, true, formando.endereco));
   }
   if (erros.length > 0) {
     return c.html(
@@ -509,19 +552,34 @@ publicRoutes.post('/e/:slug/inscrever/:id', async (c) => {
   const codigo = gerarCodigo();
   const db = c.env.DB;
   const resultados = await db.batch([
+    // Vagas a mais: concede o que houver sobrando na escola, no mesmo comando
+    // (o saldo é lido e usado de uma vez, sem disputa entre dois pedidos).
     db.prepare(
       `UPDATE alunos SET inscrito_em = datetime('now'), qtd_acompanhantes = ?, telefone = ?, endereco = ?,
-         data_nascimento = ?, codigo = ?
+         data_nascimento = ?, codigo = ?,
+         qtd_extras = MAX(0, MIN(?, ${SQL_SALDO})),
+         qtd_espera = ? - MAX(0, MIN(?, ${SQL_SALDO})),
+         espera_desde = CASE WHEN ? > MAX(0, MIN(?, ${SQL_SALDO})) THEN datetime('now') END,
+         extra_autorizado_por = CASE WHEN MAX(0, MIN(?, ${SQL_SALDO})) > 0 THEN 'Vagas sobrando (automático)' END
        WHERE id = ? AND inscrito_em IS NULL`
-    ).bind(qtd, formando.telefone, formando.endereco, formando.nascimento, codigo, aluno.id),
+    ).bind(
+      qtd, formando.telefone, formando.endereco, formando.nascimento, codigo,
+      pedido, escola.id,
+      pedido, pedido, escola.id,
+      pedido, pedido, escola.id,
+      pedido, escola.id,
+      aluno.id
+    ),
     db.prepare(
       'DELETE FROM acompanhantes WHERE aluno_id = ? AND EXISTS (SELECT 1 FROM alunos WHERE id = ? AND codigo = ?)'
     ).bind(aluno.id, aluno.id, codigo),
     ...acomps.map((a, i) =>
       db.prepare(
-        `INSERT INTO acompanhantes (aluno_id, ordem, nome, endereco, data_nascimento, telefone)
-         SELECT ?, ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM alunos WHERE id = ? AND codigo = ?)`
-      ).bind(aluno.id, i + 1, a.nome, a.endereco, a.nascimento, a.telefone, aluno.id, codigo)
+        `INSERT INTO acompanhantes (aluno_id, ordem, nome, endereco, data_nascimento, telefone, situacao)
+         SELECT ?, ?, ?, ?, ?, ?,
+           CASE WHEN ? <= qtd_acompanhantes + qtd_extras THEN 'confirmado' ELSE 'espera' END
+         FROM alunos WHERE id = ? AND codigo = ?`
+      ).bind(aluno.id, i + 1, a.nome, a.endereco, a.nascimento, a.telefone, i + 1, aluno.id, codigo)
     ),
   ]);
   if (!resultados[0].meta.changes) return c.redirect(`/e/${escola.slug}/inscrever/${aluno.id}`);
@@ -530,7 +588,7 @@ publicRoutes.post('/e/:slug/inscrever/:id', async (c) => {
     acao: 'inscricao_publica',
     aluno_id: aluno.id,
     escola_id: escola.id,
-    detalhe: `${qtd} acompanhante(s)`,
+    detalhe: pedido > 0 ? `${qtd} acompanhante(s) + pediu ${pedido} vaga(s) a mais` : `${qtd} acompanhante(s)`,
   });
   return c.redirect(`/c/${codigo}`);
 });
@@ -548,7 +606,10 @@ publicRoutes.get('/c/:codigo', async (c) => {
 
   const acompanhantes = aluno.qtd_acompanhantes + aluno.qtd_extras;
   const pessoas = 1 + acompanhantes;
-  const fichas = await acompanhantesDoAluno(c.env.DB, aluno.id);
+  const todas = await acompanhantesDoAluno(c.env.DB, aluno.id);
+  const fichas = todas.filter((f) => f.situacao === 'confirmado');
+  const emEspera = todas.filter((f) => f.situacao === 'espera');
+  const semFicha = Math.max(0, acompanhantes - fichas.length);
   const whatsappOficial = await lerConfig(c.env.DB, 'whatsapp_oficial');
   const localEvento = await lerConfig(c.env.DB, 'local_evento');
   const dataEvento = await lerConfig(c.env.DB, 'data_evento');
@@ -576,19 +637,29 @@ publicRoutes.get('/c/:codigo', async (c) => {
               <span>de leite — 1 litro por pessoa, entregue na entrada da cerimônia</span>
             </div>
 
+            {aluno.qtd_espera > 0 && (
+              <div class="msg msg-aviso espera-aviso">
+                <b>
+                  Pedido de {aluno.qtd_espera} vaga{aluno.qtd_espera === 1 ? '' : 's'} a mais em espera
+                </b>
+                {emEspera.length > 0 && <span> ({emEspera.map((f) => f.nome).join(', ')})</span>}. No momento
+                ainda estamos fechando as turmas. Se abrirem vagas, a comissão fala com você
+                {aluno.telefone ? ` pelo ${formatarTelefone(aluno.telefone)}` : ''}.
+              </div>
+            )}
+
             <dl class="dados">
               <dt>Pessoas</dt>
               <dd>
                 {pessoas} ({acompanhantes} acompanhante{acompanhantes === 1 ? '' : 's'} + você)
-                {fichas.length > 0 && (
+                {(fichas.length > 0 || semFicha > 0) && (
                   <span class="nomes">
                     {fichas.map((f) => (
                       <span>{f.nome}</span>
                     ))}
-                    {aluno.qtd_extras > 0 && (
+                    {semFicha > 0 && (
                       <span>
-                        + {aluno.qtd_extras} convidado{aluno.qtd_extras === 1 ? '' : 's'} extra
-                        {aluno.qtd_extras === 1 ? '' : 's'}
+                        + {semFicha} convidado{semFicha === 1 ? '' : 's'} sem ficha
                       </span>
                     )}
                   </span>

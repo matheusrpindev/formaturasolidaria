@@ -23,6 +23,8 @@ export type Aluno = {
   telefone: string | null;
   endereco: string | null;
   data_nascimento: string | null;
+  qtd_espera: number;
+  espera_desde: string | null;
   observacoes: string | null;
   incluido_manualmente: number;
 };
@@ -35,7 +37,21 @@ export type Acompanhante = {
   endereco: string;
   data_nascimento: string;
   telefone: string;
+  situacao: 'confirmado' | 'espera';
 };
+
+/** Acompanhantes que todo formando pode levar. */
+export const VAGAS_POR_ALUNO = 3;
+/** Máximo de vagas extras que uma família pode pedir pelo formulário. */
+export const MAX_EXTRAS_PEDIDO = 7;
+
+/**
+ * Vagas sobrando na escola (SQL, um parâmetro: escola_id). Quem ainda não se
+ * inscreveu conta como se fosse usar as 3 vagas; quem se inscreveu com menos
+ * libera a diferença; extras concedidos consomem do saldo.
+ */
+export const SQL_SALDO = `(SELECT COALESCE(SUM(3 - qtd_acompanhantes - qtd_extras), 0)
+  FROM alunos WHERE escola_id = ? AND inscrito_em IS NOT NULL)`;
 
 export async function acompanhantesDoAluno(db: D1Database, alunoId: number): Promise<Acompanhante[]> {
   const r = await db
@@ -76,6 +92,8 @@ export type Kpis = {
   inscritos: number;
   ingressos: number;
   saldo: number;
+  espera: number;
+  familias_espera: number;
 };
 
 export function normalizar(texto: string): string {
@@ -109,10 +127,12 @@ export async function kpisEscola(db: D1Database, escolaId: number): Promise<Kpis
        COUNT(*) AS total_lista,
        COALESCE(SUM(CASE WHEN inscrito_em IS NOT NULL THEN 1 ELSE 0 END), 0) AS inscritos,
        COALESCE(SUM(CASE WHEN inscrito_em IS NOT NULL THEN 1 + qtd_acompanhantes + qtd_extras ELSE 0 END), 0) AS ingressos,
-       COALESCE(SUM(CASE WHEN inscrito_em IS NOT NULL THEN 3 - qtd_acompanhantes - qtd_extras ELSE 0 END), 0) AS saldo
+       COALESCE(SUM(CASE WHEN inscrito_em IS NOT NULL THEN 3 - qtd_acompanhantes - qtd_extras ELSE 0 END), 0) AS saldo,
+       COALESCE(SUM(CASE WHEN inscrito_em IS NOT NULL THEN qtd_espera ELSE 0 END), 0) AS espera,
+       COALESCE(SUM(CASE WHEN inscrito_em IS NOT NULL AND qtd_espera > 0 THEN 1 ELSE 0 END), 0) AS familias_espera
      FROM alunos WHERE escola_id = ?`
   ).bind(escolaId).first<Kpis>();
-  return r ?? { total_lista: 0, inscritos: 0, ingressos: 0, saldo: 0 };
+  return r ?? { total_lista: 0, inscritos: 0, ingressos: 0, saldo: 0, espera: 0, familias_espera: 0 };
 }
 
 export async function registrarAuditoria(
