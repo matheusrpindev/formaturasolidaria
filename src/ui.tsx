@@ -107,7 +107,12 @@ a { color: var(--azul); text-underline-offset: 3px; }
 .hero-bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .hero-veu {
   position: absolute; inset: 0;
-  background: linear-gradient(180deg, rgba(5,14,30,.55) 0%, rgba(5,14,30,.35) 40%, rgba(5,14,30,.72) 100%);
+  background:
+    linear-gradient(90deg, rgba(5,14,30,.62) 0%, rgba(5,14,30,.38) 55%, rgba(5,14,30,.12) 100%),
+    linear-gradient(180deg, rgba(5,14,30,.35) 0%, rgba(5,14,30,0) 30%, rgba(5,14,30,.55) 100%);
+}
+@media (max-width: 720px) {
+  .hero-veu { background: linear-gradient(180deg, rgba(5,14,30,.35) 0%, rgba(5,14,30,.45) 40%, rgba(5,14,30,.8) 100%); }
 }
 .hero-conteudo {
   position: relative; z-index: 2; width: 100%; max-width: var(--largura);
