@@ -165,6 +165,7 @@ a { color: var(--azul); text-underline-offset: 3px; }
 }
 .escola-card h3 { margin: 0; font-size: clamp(20px, 2.4vw, 26px); font-weight: 700; transition: color .15s ease; }
 .escola-card .meta { color: var(--muted); font-size: 14.5px; margin-top: 4px; }
+.escola-card .data-cerimonia { color: var(--fg-2); font-weight: 600; }
 .escola-card .seta {
   flex: 0 0 auto; display: inline-flex; align-items: center; gap: 10px;
   font-weight: 700; font-size: 14.5px; color: var(--fg); transition: gap .15s ease;

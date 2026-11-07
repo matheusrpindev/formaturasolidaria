@@ -7,6 +7,10 @@
 -- Vagas sobrando na escola = soma, entre os inscritos, de (3 - acompanhantes - extras).
 --   Quem ainda não se inscreveu conta como se fosse usar as 3.
 
+-- Data e horário da cerimônia de cada escola (cada escola/turma tem a sua).
+ALTER TABLE escolas ADD COLUMN data_cerimonia TEXT;
+ALTER TABLE escolas ADD COLUMN hora_cerimonia TEXT;
+
 ALTER TABLE alunos ADD COLUMN endereco TEXT;
 ALTER TABLE alunos ADD COLUMN data_nascimento TEXT;
 -- Vagas extras pedidas que ainda não foram atendidas (fila de espera).

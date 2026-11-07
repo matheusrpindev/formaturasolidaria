@@ -8,6 +8,7 @@ import {
   SQL_SALDO_LIVRE,
   VAGAS_POR_ALUNO,
   acompanhantesDoAluno,
+  formatarCerimonia,
   formatarData,
   formatarTelefone,
   limparTelefone,
@@ -32,7 +33,7 @@ const IconeWhats = () => (
 // ---------- Página inicial ----------
 publicRoutes.get('/', async (c) => {
   const escolas = await c.env.DB.prepare(
-    "SELECT * FROM escolas WHERE status = 'ativa' ORDER BY nome"
+    "SELECT * FROM escolas WHERE status = 'ativa' ORDER BY data_cerimonia IS NULL, data_cerimonia, nome"
   ).all<Escola>();
   const total = escolas.results.length;
   const edicao = escolas.results[0]?.edicao;
@@ -111,7 +112,7 @@ publicRoutes.get('/', async (c) => {
 
       <section class="secao" id="escolas">
         <div class="secao-cabeca">
-          <p class="kicker">{total === 0 ? 'Em breve' : 'Inscrições abertas'}</p>
+          <p class="kicker">{total === 0 ? 'Em breve' : 'Escolas e datas'}</p>
           <h2>Escolas participantes</h2>
           {total > 0 && <p>Clique na sua escola para buscar o seu nome na lista de formandos.</p>}
         </div>
@@ -127,9 +128,8 @@ publicRoutes.get('/', async (c) => {
                 <div>
                   <h3>{e.nome}</h3>
                   <div class="meta">
-                    {e.prazo_inscricao
-                      ? `Inscrições até ${formatarData(e.prazo_inscricao)}`
-                      : 'Inscrições abertas'}
+                    {e.data_cerimonia && <span class="data-cerimonia">Formatura {formatarCerimonia(e)}</span>}
+                    {e.prazo_inscricao ? ` · inscrições até ${formatarData(e.prazo_inscricao)}` : ''}
                   </div>
                 </div>
                 <div class="seta">
@@ -179,6 +179,7 @@ publicRoutes.get('/e/:slug', async (c) => {
     resultados = r.results;
   }
   const encerrado = prazoEncerrado(escola);
+  const temLista = !!(await c.env.DB.prepare('SELECT 1 FROM alunos WHERE escola_id = ? LIMIT 1').bind(escola.id).first());
 
   return c.html(
     <Layout
@@ -191,15 +192,21 @@ publicRoutes.get('/e/:slug', async (c) => {
         voltar={{ href: '/', texto: 'Todas as escolas' }}
         kicker={`Formatura Solidária · Edição ${escola.edicao}`}
         titulo={escola.nome}
-        lead={
+        lead={[
+          escola.data_cerimonia ? `Formatura ${formatarCerimonia(escola, true)}.` : '',
           escola.prazo_inscricao && !encerrado
             ? `Inscrições até ${formatarData(escola.prazo_inscricao)} · busque o seu nome na lista de formandos.`
-            : 'Busque o seu nome na lista de formandos para confirmar a sua inscrição.'
-        }
+            : 'Busque o seu nome na lista de formandos para confirmar a sua inscrição.',
+        ].filter(Boolean).join(' ')}
       />
       <main class="wrap wrap-estreito">
         <div class="cartao cartao-destaque puxa-cima">
-          {encerrado ? (
+          {!temLista ? (
+            <Msg tipo="aviso">
+              A lista de formandos desta escola ainda não foi publicada. Volte em breve para fazer a sua
+              inscrição.
+            </Msg>
+          ) : encerrado ? (
             <Msg tipo="aviso">
               As inscrições desta escola foram encerradas em {formatarData(escola.prazo_inscricao)}. Fale com a
               comissão de formatura da sua escola.
@@ -234,7 +241,7 @@ publicRoutes.get('/e/:slug', async (c) => {
           )}
         </div>
 
-        {q.length >= 3 && !encerrado && (
+        {q.length >= 3 && !encerrado && temLista && (
           <div class="cartao">
             <h2>
               {resultados.length === 0
@@ -612,7 +619,9 @@ publicRoutes.get('/c/:codigo', async (c) => {
   const semFicha = Math.max(0, acompanhantes - fichas.length);
   const whatsappOficial = await lerConfig(c.env.DB, 'whatsapp_oficial');
   const localEvento = await lerConfig(c.env.DB, 'local_evento');
-  const dataEvento = await lerConfig(c.env.DB, 'data_evento');
+  const dataEvento = escola.data_cerimonia
+    ? formatarCerimonia(escola, true).replace(/^./, (l) => l.toUpperCase())
+    : await lerConfig(c.env.DB, 'data_evento');
 
   return c.html(
     <Layout titulo="Inscrição confirmada" usuario={c.get('usuario')}>

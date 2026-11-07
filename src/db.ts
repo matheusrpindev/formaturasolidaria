@@ -8,7 +8,27 @@ export type Escola = {
   link_grupo_whatsapp: string | null;
   kg_arrecadados: number | null;
   status: string;
+  data_cerimonia: string | null;
+  hora_cerimonia: string | null;
 };
+
+const DIAS = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
+
+/** '18:00' -> '18h'; '18:30' -> '18h30' */
+export function formatarHora(h: string | null | undefined): string {
+  const m = /^(\d{1,2}):(\d{2})/.exec(h ?? '');
+  if (!m) return '';
+  return `${parseInt(m[1], 10)}h${m[2] === '00' ? '' : m[2]}`;
+}
+
+/** Data da cerimônia por extenso curto: 'terça, 08/12 às 18h'. Vazio se não houver data. */
+export function formatarCerimonia(e: Pick<Escola, 'data_cerimonia' | 'hora_cerimonia'>, comAno = false): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(e.data_cerimonia ?? '');
+  if (!m) return '';
+  const dia = DIAS[new Date(`${e.data_cerimonia}T12:00:00Z`).getUTCDay()];
+  const hora = formatarHora(e.hora_cerimonia);
+  return `${dia}, ${m[3]}/${m[2]}${comAno ? `/${m[1]}` : ''}${hora ? ` às ${hora}` : ''}`;
+}
 
 export type Aluno = {
   id: number;

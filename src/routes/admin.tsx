@@ -157,6 +157,16 @@ adminRoutes.get('/admin/escolas/nova', (c) => {
             <input id="ne-nome" type="text" name="nome" required minlength={3} placeholder="E.E. Professora..." />
             <label for="ne-cap">Capacidade da cerimônia <span class="opcional">(lugares no CEMI, opcional)</span></label>
             <input id="ne-cap" type="number" name="capacidade" min="1" />
+            <div class="duas-col">
+              <div>
+                <label for="ne-data">Data da formatura</label>
+                <input id="ne-data" type="date" name="data_cerimonia" />
+              </div>
+              <div>
+                <label for="ne-hora">Horário</label>
+                <input id="ne-hora" type="time" name="hora_cerimonia" value="18:00" />
+              </div>
+            </div>
             <label for="ne-prazo">Prazo de inscrição <span class="opcional">(opcional)</span></label>
             <input id="ne-prazo" type="date" name="prazo_inscricao" />
             <label for="ne-grupo">Link do grupo de WhatsApp da formatura <span class="opcional">(opcional)</span></label>
@@ -181,9 +191,11 @@ adminRoutes.post('/admin/escolas/nova', async (c) => {
   const capacidade = parseInt(String(corpo['capacidade'] ?? ''), 10);
   const prazo = String(corpo['prazo_inscricao'] ?? '').trim() || null;
   const grupo = String(corpo['link_grupo_whatsapp'] ?? '').trim() || null;
+  const dataCer = /^\d{4}-\d{2}-\d{2}$/.test(String(corpo['data_cerimonia'] ?? '')) ? String(corpo['data_cerimonia']) : null;
+  const horaCer = /^\d{2}:\d{2}$/.test(String(corpo['hora_cerimonia'] ?? '')) ? String(corpo['hora_cerimonia']) : null;
   const r = await c.env.DB.prepare(
-    'INSERT INTO escolas (nome, slug, capacidade, prazo_inscricao, link_grupo_whatsapp) VALUES (?, ?, ?, ?, ?)'
-  ).bind(nome, slug, isNaN(capacidade) ? null : capacidade, prazo, grupo).run();
+    'INSERT INTO escolas (nome, slug, capacidade, prazo_inscricao, link_grupo_whatsapp, data_cerimonia, hora_cerimonia) VALUES (?, ?, ?, ?, ?, ?, ?)'
+  ).bind(nome, slug, isNaN(capacidade) ? null : capacidade, prazo, grupo, dataCer, horaCer).run();
   await registrarAuditoria(c.env.DB, {
     usuario_id: c.get('usuario')!.id,
     acao: 'criou_escola',
@@ -234,6 +246,16 @@ async function paginaEscola(c: any, escolaId: number, aviso?: { ok?: string; err
             <input id="ee-nome" type="text" name="nome" value={escola.nome} required minlength={3} />
             <label for="ee-cap">Capacidade</label>
             <input id="ee-cap" type="number" name="capacidade" min="1" value={escola.capacidade ?? ''} />
+            <div class="duas-col">
+              <div>
+                <label for="ee-data">Data da formatura</label>
+                <input id="ee-data" type="date" name="data_cerimonia" value={escola.data_cerimonia ?? ''} />
+              </div>
+              <div>
+                <label for="ee-hora">Horário</label>
+                <input id="ee-hora" type="time" name="hora_cerimonia" value={escola.hora_cerimonia ?? '18:00'} />
+              </div>
+            </div>
             <label for="ee-prazo">Prazo de inscrição</label>
             <input id="ee-prazo" type="date" name="prazo_inscricao" value={escola.prazo_inscricao ?? ''} />
             <label for="ee-grupo">Link do grupo de WhatsApp</label>
@@ -329,10 +351,12 @@ adminRoutes.post('/admin/escolas/:id', async (c) => {
   const capacidade = parseInt(String(corpo['capacidade'] ?? ''), 10);
   const prazo = String(corpo['prazo_inscricao'] ?? '').trim() || null;
   const grupo = String(corpo['link_grupo_whatsapp'] ?? '').trim() || null;
+  const dataCer = /^\d{4}-\d{2}-\d{2}$/.test(String(corpo['data_cerimonia'] ?? '')) ? String(corpo['data_cerimonia']) : null;
+  const horaCer = /^\d{2}:\d{2}$/.test(String(corpo['hora_cerimonia'] ?? '')) ? String(corpo['hora_cerimonia']) : null;
   const status = String(corpo['status'] ?? 'ativa') === 'encerrada' ? 'encerrada' : 'ativa';
   await c.env.DB.prepare(
-    'UPDATE escolas SET nome = ?, capacidade = ?, prazo_inscricao = ?, link_grupo_whatsapp = ?, status = ? WHERE id = ?'
-  ).bind(nome, isNaN(capacidade) ? null : capacidade, prazo, grupo, status, id).run();
+    'UPDATE escolas SET nome = ?, capacidade = ?, prazo_inscricao = ?, link_grupo_whatsapp = ?, status = ?, data_cerimonia = ?, hora_cerimonia = ? WHERE id = ?'
+  ).bind(nome, isNaN(capacidade) ? null : capacidade, prazo, grupo, status, dataCer, horaCer, id).run();
   await registrarAuditoria(c.env.DB, { usuario_id: c.get('usuario')!.id, acao: 'editou_escola', escola_id: id });
   return paginaEscola(c, id, { ok: 'Escola atualizada.' });
 });
