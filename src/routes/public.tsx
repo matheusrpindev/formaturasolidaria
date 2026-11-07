@@ -5,7 +5,7 @@ import {
   type Aluno,
   type Escola,
   MAX_EXTRAS_PEDIDO,
-  SQL_SALDO,
+  SQL_SALDO_LIVRE,
   VAGAS_POR_ALUNO,
   acompanhantesDoAluno,
   formatarData,
@@ -552,15 +552,15 @@ publicRoutes.post('/e/:slug/inscrever/:id', async (c) => {
   const codigo = gerarCodigo();
   const db = c.env.DB;
   const resultados = await db.batch([
-    // Vagas a mais: concede o que houver sobrando na escola, no mesmo comando
-    // (o saldo é lido e usado de uma vez, sem disputa entre dois pedidos).
+    // Vagas a mais: concede o que houver sobrando na escola, depois de reservar o
+    // que a fila de espera aguarda, no mesmo comando (sem disputa entre pedidos).
     db.prepare(
       `UPDATE alunos SET inscrito_em = datetime('now'), qtd_acompanhantes = ?, telefone = ?, endereco = ?,
          data_nascimento = ?, codigo = ?,
-         qtd_extras = MAX(0, MIN(?, ${SQL_SALDO})),
-         qtd_espera = ? - MAX(0, MIN(?, ${SQL_SALDO})),
-         espera_desde = CASE WHEN ? > MAX(0, MIN(?, ${SQL_SALDO})) THEN datetime('now') END,
-         extra_autorizado_por = CASE WHEN MAX(0, MIN(?, ${SQL_SALDO})) > 0 THEN 'Vagas sobrando (automático)' END
+         qtd_extras = MAX(0, MIN(?, ${SQL_SALDO_LIVRE})),
+         qtd_espera = ? - MAX(0, MIN(?, ${SQL_SALDO_LIVRE})),
+         espera_desde = CASE WHEN ? > MAX(0, MIN(?, ${SQL_SALDO_LIVRE})) THEN datetime('now') END,
+         extra_autorizado_por = CASE WHEN MAX(0, MIN(?, ${SQL_SALDO_LIVRE})) > 0 THEN 'Vagas sobrando (automático)' END
        WHERE id = ? AND inscrito_em IS NULL`
     ).bind(
       qtd, formando.telefone, formando.endereco, formando.nascimento, codigo,

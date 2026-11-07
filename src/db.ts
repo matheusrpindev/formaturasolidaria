@@ -53,6 +53,14 @@ export const MAX_EXTRAS_PEDIDO = 7;
 export const SQL_SALDO = `(SELECT COALESCE(SUM(3 - qtd_acompanhantes - qtd_extras), 0)
   FROM alunos WHERE escola_id = ? AND inscrito_em IS NOT NULL)`;
 
+/**
+ * Vagas sobrando que um pedido NOVO pode pegar (SQL, um parâmetro: escola_id):
+ * o saldo menos o que a fila de espera já está aguardando, para ninguém passar
+ * na frente de quem pediu antes.
+ */
+export const SQL_SALDO_LIVRE = `(SELECT COALESCE(SUM(3 - qtd_acompanhantes - qtd_extras - qtd_espera), 0)
+  FROM alunos WHERE escola_id = ? AND inscrito_em IS NOT NULL)`;
+
 export async function acompanhantesDoAluno(db: D1Database, alunoId: number): Promise<Acompanhante[]> {
   const r = await db
     .prepare('SELECT * FROM acompanhantes WHERE aluno_id = ? ORDER BY ordem')
